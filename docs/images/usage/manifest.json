@@ -1,0 +1,13 @@
+{
+  "demo_title": "[文档演示] 用法截图示例图",
+  "demo": {
+    "graph_id": "b4585cbd-b3da-40d5-9ab3-c9338817b0d7",
+    "root_id": "0c815cfc-59a6-4593-bdb4-447e677ca4fe",
+    "child_b_id": "9fe91342-50a2-4f25-9221-917ef94c31e4",
+    "edge_b_id": "60840461-0fce-4a30-b974-1f898c3047ba",
+    "session_id": "f08f9874-f34c-46b7-a803-3a843c149274",
+    "assistant_id": "e5a33b1c-25ef-43d6-b47e-ea410d9072c6",
+    "user_id": "5d68c112-16d9-485c-bc88-57af65ea33f7"
+  },
+  "generated": true
+}

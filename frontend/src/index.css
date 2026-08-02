@@ -466,12 +466,141 @@ select {
 }
 
 .chat-drawer {
+  position: relative;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   background: #fffdf8;
   border-right: 1px solid var(--line);
+}
+
+.temp-ask {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  background: #fffdf8;
+  border-right: 1px solid var(--line);
+}
+
+.temp-ask__header,
+.temp-ask__mainline,
+.temp-ask__messages,
+.temp-ask__composer {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.temp-ask__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+.temp-ask__header h3 {
+  margin: 0 0 2px;
+  font-size: 1rem;
+  font-family: "Fraunces", "Times New Roman", serif;
+}
+
+.temp-ask__section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.temp-ask__mainline {
+  flex: 1.35;
+  min-height: 180px;
+  overflow: auto;
+  background: rgba(47, 93, 140, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.temp-ask__messages {
+  flex: 1;
+  min-height: 120px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.temp-ask__turn--anchor {
+  outline: 1px solid rgba(31, 111, 91, 0.35);
+  background: rgba(31, 111, 91, 0.06);
+}
+
+.temp-ask__turn {
+  border: 1px solid var(--line);
+  padding: 6px 8px;
+  background: #fff;
+  font-size: 13px;
+}
+
+.temp-ask__turn header {
+  font-size: 11px;
+  margin-bottom: 3px;
+  color: var(--muted);
+}
+
+.temp-ask__turn--user {
+  border-left: 3px solid #2f5d8c;
+}
+
+.temp-ask__turn--assistant {
+  border-left: 3px solid var(--brand);
+}
+
+.temp-ask__turn p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.temp-ask__composer {
+  border-bottom: none;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.temp-ask__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.branch-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.branch-list__open {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px dashed var(--line);
+  background: rgba(31, 111, 91, 0.05);
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
 }
 
 .chat-drawer .btn {

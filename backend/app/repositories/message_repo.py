@@ -9,12 +9,37 @@ class MessageRepository:
         self.db = db
 
     def list_visible_by_session(self, session_id: str) -> list[ChatMessage]:
+        """Mainline messages only (side branches are excluded from the primary thread)."""
         stmt = (
             select(ChatMessage)
-            .where(ChatMessage.session_id == session_id, ChatMessage.status != "DELETED")
+            .where(
+                ChatMessage.session_id == session_id,
+                ChatMessage.status != "DELETED",
+                ChatMessage.branch_id.is_(None),
+            )
             .order_by(ChatMessage.created_at.asc())
         )
         return list(self.db.scalars(stmt).all())
+
+    def list_visible_by_branch(self, branch_id: str) -> list[ChatMessage]:
+        stmt = (
+            select(ChatMessage)
+            .where(
+                ChatMessage.branch_id == branch_id,
+                ChatMessage.status != "DELETED",
+            )
+            .order_by(ChatMessage.created_at.asc())
+        )
+        return list(self.db.scalars(stmt).all())
+
+    def list_mainline_upto(self, session_id: str, anchor_message_id: str) -> list[ChatMessage]:
+        messages = self.list_visible_by_session(session_id)
+        result: list[ChatMessage] = []
+        for message in messages:
+            result.append(message)
+            if message.id == anchor_message_id:
+                return result
+        return []
 
     def get(self, message_id: str) -> ChatMessage | None:
         return self.db.get(ChatMessage, message_id)

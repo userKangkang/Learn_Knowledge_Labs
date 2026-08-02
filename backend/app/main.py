@@ -1,13 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import attachments, contexts, edges, graphs, health, llm, messages, nodes, sessions, summaries
+from app.api import attachments, contexts, edges, graphs, health, llm, messages, nodes, sessions, summaries, temp_chats
 from app.config import get_settings
 from app.errors import register_exception_handlers
 
 settings = get_settings()
 
-app = FastAPI(title=settings.app_name, version="0.4.0")
+app = FastAPI(title=settings.app_name, version="0.5.0")
 register_exception_handlers(app)
 
 app.add_middleware(
@@ -29,3 +29,4 @@ app.include_router(messages.router, prefix=api)
 app.include_router(contexts.router, prefix=api)
 app.include_router(attachments.router, prefix=api)
 app.include_router(llm.router, prefix=api)
+app.include_router(temp_chats.router, prefix=api)

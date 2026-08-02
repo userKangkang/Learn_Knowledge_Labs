@@ -432,18 +432,19 @@ class ChatStreamService:
 
     @staticmethod
     def cancel(request_id: str) -> None:
+        # Always mark cancel flag (covers ephemeral streams with no LLMRequest row).
+        cancel_registry.request_cancel(request_id)
         db = SessionLocal()
         try:
             request = db.get(LLMRequest, request_id)
             if not request:
-                raise NotFoundError("LLM_REQUEST_NOT_FOUND", f"LLM request {request_id} not found")
+                return
             if request.status in {
                 LLMRequestStatus.SUCCEEDED.value,
                 LLMRequestStatus.FAILED.value,
                 LLMRequestStatus.CANCELLED.value,
             }:
                 return
-            cancel_registry.request_cancel(request_id)
         finally:
             db.close()
 

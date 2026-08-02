@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ConversationBranch } from "../../entities/branch/types";
 import type { TextModelChoice } from "../../entities/llm/types";
 import type { ChatMessage, MessageAttachment } from "../../entities/message/types";
 import { listNodes } from "../graph-editor/api";
@@ -10,6 +11,7 @@ import { ContextPolicyPanel } from "../context-policy/ContextPolicyPanel";
 import { promptDialog } from "../../shared/ui/dialogStore";
 import * as api from "./api";
 import { useConversationStore } from "./conversationStore";
+import { TempAskPanel } from "./TempAskPanel";
 
 interface Props {
   graphId: string;
@@ -35,6 +37,11 @@ export function ChatDrawer({ graphId }: Props) {
   const [statusNote, setStatusNote] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [liveAssistant, setLiveAssistant] = useState<{ id: string; content: string } | null>(null);
+  const [tempAsk, setTempAsk] = useState<{
+    anchor: ChatMessage;
+    branch?: ConversationBranch | null;
+  } | null>(null);
+  const [expandedBranchAnchors, setExpandedBranchAnchors] = useState<Record<string, boolean>>({});
   const abortRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -71,6 +78,12 @@ export function ChatDrawer({ graphId }: Props) {
   const messagesQuery = useQuery({
     queryKey: ["sessions", activeSessionId, "messages"],
     queryFn: () => api.listMessages(activeSessionId!),
+    enabled: drawerOpen && Boolean(activeSessionId),
+  });
+
+  const branchesQuery = useQuery({
+    queryKey: ["sessions", activeSessionId, "branches"],
+    queryFn: () => api.listBranches(activeSessionId!),
     enabled: drawerOpen && Boolean(activeSessionId),
   });
 
@@ -263,6 +276,11 @@ export function ChatDrawer({ graphId }: Props) {
 
   const activeSession = sessionsQuery.data?.find((s) => s.id === activeSessionId);
   const messages = messagesQuery.data ?? [];
+  const branches = branchesQuery.data ?? [];
+  const branchesByAnchor = branches.reduce<Record<string, ConversationBranch[]>>((acc, branch) => {
+    (acc[branch.anchor_message_id] ??= []).push(branch);
+    return acc;
+  }, {});
   const lastUserMessageId = [...messages].reverse().find((m) => m.role === "USER")?.id ?? null;
   const showLive = Boolean(liveAssistant && !messages.some((m) => m.id === liveAssistant.id));
   const chatNode = nodesQuery.data?.find((n) => n.id === activeNodeId);
@@ -272,6 +290,27 @@ export function ChatDrawer({ graphId }: Props) {
 
   return (
     <aside className="chat-drawer" aria-label={`节点对话：${chatNodeTitle}`}>
+      {tempAsk && activeSessionId && (
+        <TempAskPanel
+          sessionId={activeSessionId}
+          anchor={tempAsk.anchor}
+          mainlinePrefix={(() => {
+            const prefix: ChatMessage[] = [];
+            for (const message of messages) {
+              prefix.push(message);
+              if (message.id === tempAsk.anchor.id) break;
+            }
+            return prefix.length > 0 ? prefix : [tempAsk.anchor];
+          })()}
+          textModel={textModel}
+          webSearch={webSearch}
+          initialBranch={tempAsk.branch}
+          onClose={() => setTempAsk(null)}
+          onSaved={async () => {
+            await qc.invalidateQueries({ queryKey: ["sessions", activeSessionId, "branches"] });
+          }}
+        />
+      )}
       <div className="chat-drawer__header">
         <div>
           <span className="chat-drawer__eyebrow">节点对话</span>
@@ -352,6 +391,14 @@ export function ChatDrawer({ graphId }: Props) {
             onDelete={() => deleteMutation.mutate(message.id)}
             canRetry={message.role === "USER" && message.id === lastUserMessageId && !streaming}
             onRetry={() => void retryLastUser()}
+            canTempAsk={message.role === "ASSISTANT" && message.status !== "STREAMING" && !streaming}
+            onTempAsk={() => setTempAsk({ anchor: message })}
+            branches={branchesByAnchor[message.id] ?? []}
+            branchesExpanded={Boolean(expandedBranchAnchors[message.id])}
+            onToggleBranches={() =>
+              setExpandedBranchAnchors((prev) => ({ ...prev, [message.id]: !prev[message.id] }))
+            }
+            onOpenBranch={(branch) => setTempAsk({ anchor: message, branch })}
           />
         ))}
         {showLive && liveAssistant && (
@@ -492,6 +539,12 @@ function MessageBubble({
   onDelete,
   canRetry = false,
   onRetry,
+  canTempAsk = false,
+  onTempAsk,
+  branches = [],
+  branchesExpanded = false,
+  onToggleBranches,
+  onOpenBranch,
   readOnly = false,
 }: {
   message: ChatMessage;
@@ -503,6 +556,12 @@ function MessageBubble({
   onDelete: () => void;
   canRetry?: boolean;
   onRetry?: () => void;
+  canTempAsk?: boolean;
+  onTempAsk?: () => void;
+  branches?: ConversationBranch[];
+  branchesExpanded?: boolean;
+  onToggleBranches?: () => void;
+  onOpenBranch?: (branch: ConversationBranch) => void;
   readOnly?: boolean;
 }) {
   return (
@@ -514,6 +573,7 @@ function MessageBubble({
         {message.status === "EDITED" && <span className="slot-badge">已编辑</span>}
         {message.status === "STREAMING" && <span className="slot-badge">生成中</span>}
         {message.status === "FAILED" && <span className="slot-badge">失败</span>}
+        {branches.length > 0 && <span className="slot-badge">旁支 {branches.length}</span>}
         <span className="muted">r{message.current_revision}</span>
       </header>
       {(message.attachments ?? []).length > 0 && (
@@ -546,6 +606,16 @@ function MessageBubble({
           )}
           {!readOnly && message.status !== "STREAMING" && (
             <div className="chat-bubble__actions">
+              {canTempAsk && onTempAsk && (
+                <button type="button" className="btn btn--ghost" onClick={onTempAsk}>
+                  临时询问
+                </button>
+              )}
+              {branches.length > 0 && onToggleBranches && (
+                <button type="button" className="btn btn--ghost" onClick={onToggleBranches}>
+                  {branchesExpanded ? "收起旁支" : `展开旁支 (${branches.length})`}
+                </button>
+              )}
               {canRetry && onRetry && (
                 <button type="button" className="btn btn--ghost" onClick={onRetry}>
                   重试
@@ -565,6 +635,22 @@ function MessageBubble({
                 删除
               </button>
             </div>
+          )}
+          {branchesExpanded && branches.length > 0 && (
+            <ul className="branch-list">
+              {branches.map((branch) => (
+                <li key={branch.id}>
+                  <button
+                    type="button"
+                    className="branch-list__open"
+                    onClick={() => onOpenBranch?.(branch)}
+                  >
+                    <strong>{branch.title || "旁支"}</strong>
+                    <span className="muted">{branch.message_count} 条</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </>
       )}

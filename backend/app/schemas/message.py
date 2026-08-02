@@ -22,6 +22,7 @@ class MessageRead(TimestampRead):
     current_revision: int
     llm_request_id: str | None = None
     provider: str | None = None
+    branch_id: str | None = None
     attachments: list[AttachmentRead] = []
 
 

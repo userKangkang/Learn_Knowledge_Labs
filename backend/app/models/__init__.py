@@ -1,4 +1,5 @@
 from app.models.attachment import MessageAttachment
+from app.models.branch import ConversationBranch
 from app.models.context import (
     ContextNodeSource,
     ContextSessionSource,
@@ -22,6 +23,7 @@ __all__ = [
     "ConversationSession",
     "ChatMessage",
     "MessageRevision",
+    "ConversationBranch",
     "SessionContextPolicy",
     "ContextNodeSource",
     "ContextSessionSource",

@@ -24,6 +24,7 @@ export interface ChatMessage {
   current_revision: number;
   llm_request_id?: string | null;
   provider?: string | null;
+  branch_id?: string | null;
   attachments?: MessageAttachment[];
   created_at: string;
   updated_at: string;

@@ -11,6 +11,12 @@ class ChatMessage(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     session_id: Mapped[str] = mapped_column(String(36), ForeignKey("conversation_sessions.id"), nullable=False)
+    branch_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("conversation_branches.id", use_alter=True, name="fk_chat_messages_branch_id"),
+        nullable=True,
+        index=True,
+    )
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="ACTIVE")
@@ -27,6 +33,7 @@ class ChatMessage(Base):
     )
 
     session = relationship("ConversationSession", back_populates="messages")
+    branch = relationship("ConversationBranch", back_populates="messages", foreign_keys=[branch_id])
     revisions = relationship("MessageRevision", back_populates="message")
 
 

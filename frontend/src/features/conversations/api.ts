@@ -1,5 +1,6 @@
 import { ApiError, apiRequest } from "../../shared/api/client";
 import { consumeSse, type SseHandler } from "../../shared/api/sse";
+import type { ConversationBranch, TempTurn } from "../../entities/branch/types";
 import type { LLMSettings } from "../../entities/llm/types";
 import type {
   ChatMessage,
@@ -124,4 +125,65 @@ export async function retryStreamMessage(
 
 export function cancelLlmRequest(requestId: string) {
   return apiRequest<void>(`/api/v1/llm-requests/${requestId}/cancel`, { method: "POST" });
+}
+
+export function listBranches(sessionId: string, anchorMessageId?: string) {
+  const query = anchorMessageId
+    ? `?anchor_message_id=${encodeURIComponent(anchorMessageId)}`
+    : "";
+  return apiRequest<ConversationBranch[]>(`/api/v1/sessions/${sessionId}/branches${query}`);
+}
+
+export function createBranch(
+  sessionId: string,
+  body: { anchor_message_id: string; turns: TempTurn[]; title?: string },
+) {
+  return apiRequest<ConversationBranch>(`/api/v1/sessions/${sessionId}/branches`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteBranch(branchId: string) {
+  return apiRequest<void>(`/api/v1/branches/${branchId}`, { method: "DELETE" });
+}
+
+export async function streamEphemeralTempChat(
+  sessionId: string,
+  body: {
+    anchor_message_id: string;
+    content: string;
+    prior_turns?: TempTurn[];
+    web_search?: boolean;
+    text_model?: "deepseek-v4-pro" | "kimi-k2.6";
+  },
+  onEvent: SseHandler,
+  signal?: AbortSignal,
+) {
+  const response = await fetch(`/api/v1/sessions/${sessionId}/temp-chats/ephemeral/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  await consumeSse(response, onEvent, signal);
+}
+
+export async function streamBranchMessage(
+  branchId: string,
+  body: {
+    content: string;
+    web_search?: boolean;
+    text_model?: "deepseek-v4-pro" | "kimi-k2.6";
+  },
+  onEvent: SseHandler,
+  signal?: AbortSignal,
+) {
+  const response = await fetch(`/api/v1/branches/${branchId}/messages/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  await consumeSse(response, onEvent, signal);
 }

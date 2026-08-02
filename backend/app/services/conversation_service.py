@@ -6,6 +6,7 @@ from app.errors import AppError, NotFoundError
 from app.models.message import ChatMessage, MessageRevision
 from app.models.session import ConversationSession
 from app.repositories.attachment_repo import AttachmentRepository
+from app.repositories.branch_repo import BranchRepository
 from app.repositories.context_repo import ContextRepository
 from app.repositories.message_repo import MessageRepository
 from app.repositories.node_repo import NodeRepository
@@ -24,6 +25,7 @@ class ConversationService:
         self.messages = MessageRepository(db)
         self.contexts = ContextRepository(db)
         self.attachments = AttachmentRepository(db)
+        self.branches = BranchRepository(db)
 
     def _require_node(self, node_id: str):
         node = self.nodes.get_active(node_id)
@@ -65,6 +67,7 @@ class ConversationService:
     def delete_session(self, session_id: str) -> None:
         session = self._require_session(session_id)
         self.contexts.soft_delete_policy_by_session(session_id)
+        self.branches.soft_delete_by_sessions([session_id])
         self.messages.soft_delete_by_sessions([session_id])
         self.sessions.soft_delete(session)
         self.db.commit()
@@ -89,6 +92,7 @@ class ConversationService:
                 current_revision=m.current_revision,
                 llm_request_id=m.llm_request_id,
                 provider=getattr(m, "provider", None),
+                branch_id=getattr(m, "branch_id", None),
                 attachments=by_message.get(m.id, []),
                 created_at=m.created_at,
                 updated_at=m.updated_at,
