@@ -28,7 +28,7 @@ export function ChatDrawer({ graphId }: Props) {
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
 
   const [content, setContent] = useState("");
-  const [textModel, setTextModel] = useState<TextModelChoice>("deepseek-v4-pro");
+  const [textModel, setTextModel] = useState<TextModelChoice>("deepseek-v4-flash");
   const [webSearch, setWebSearch] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<MessageAttachment[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -479,15 +479,15 @@ export function ChatDrawer({ graphId }: Props) {
               onChange={(e) => setTextModel(e.target.value as TextModelChoice)}
               title={pendingFiles.length > 0 ? "有附件时强制 Kimi 2.6" : "纯文字模型"}
             >
-              <option value="deepseek-v4-pro">DeepSeek v4-pro</option>
-              <option value="kimi-k2.6">Kimi 2.6</option>
+              <option value="deepseek-v4-flash">DeepSeek v4-flash</option>
+              <option value="kimi-k3">Kimi K3</option>
             </select>
           </label>
           <label className="check-row chat-drawer__web-search">
             <input
               type="checkbox"
               checked={webSearch && pendingFiles.length === 0}
-              disabled={streaming || pendingFiles.length > 0 || textModel !== "deepseek-v4-pro"}
+              disabled={streaming || pendingFiles.length > 0 || textModel !== "deepseek-v4-flash"}
               onChange={(e) => setWebSearch(e.target.checked)}
             />
             联网

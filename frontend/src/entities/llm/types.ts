@@ -1,4 +1,4 @@
-export type TextModelChoice = "deepseek-v4-pro" | "kimi-k2.6";
+export type TextModelChoice = "deepseek-v4-flash" | "kimi-k3";
 
 export interface LLMSettings {
   provider: string;

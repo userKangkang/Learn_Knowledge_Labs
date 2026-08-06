@@ -48,9 +48,9 @@ def _pdf_with_text(text: str) -> bytes:
 
 def test_llm_settings(client: TestClient):
     data = client.get("/api/v1/llm/settings").json()
-    assert data["model"] == "deepseek-v4-pro"
+    assert data["model"] == "deepseek-v4-flash"
     assert data["search_model"] == "deepseek-v4-flash"
-    assert data["kimi_model"] == "kimi-k2.6"
+    assert data["kimi_model"] == "kimi-k3"
     assert data["web_search_uses_flash"] is True
     assert data["supports_pdf_text_extract"] is True
     assert data["supports_image_vision"] is True
@@ -93,7 +93,7 @@ def test_upload_pdf_and_stream(client: TestClient, tmp_path: Path, monkeypatch):
     def fake_stream(*_args, **kwargs):
         # With attachments, route must force Kimi file digest mode.
         assert kwargs.get("provider") == "kimi"
-        assert kwargs.get("model") == "kimi-k2.6"
+        assert kwargs.get("model") == "kimi-k3"
         assert kwargs.get("web_search") is False
         yield StreamChunk(content_delta="你好，")
         yield StreamChunk(content_delta="这是回复。", output_tokens=4)
@@ -166,14 +166,14 @@ def test_text_model_kimi_without_files(client: TestClient, monkeypatch):
 
     def fake_stream(*_args, **kwargs):
         assert kwargs.get("provider") == "kimi"
-        assert kwargs.get("model") == "kimi-k2.6"
+        assert kwargs.get("model") == "kimi-k3"
         yield StreamChunk(content_delta="kimi reply", output_tokens=2)
 
     with patch("app.services.chat_stream_service.LLMGateway.stream", side_effect=fake_stream):
         with client.stream(
             "POST",
             f"/api/v1/sessions/{session_id}/messages/stream",
-            json={"content": "解释一下强化学习", "text_model": "kimi-k2.6"},
+            json={"content": "解释一下强化学习", "text_model": "kimi-k3"},
         ) as response:
             assert response.status_code == 200
             body = "".join(response.iter_text())
@@ -214,7 +214,7 @@ def test_retry_last_user_message_only(client: TestClient, monkeypatch):
         with client.stream(
             "POST",
             f"/api/v1/sessions/{session_id}/messages/stream",
-            json={"content": "解释一下图", "text_model": "deepseek-v4-pro"},
+            json={"content": "解释一下图", "text_model": "deepseek-v4-flash"},
         ) as response:
             assert response.status_code == 200
             assert "event: completed" in "".join(response.iter_text())
@@ -236,7 +236,7 @@ def test_retry_last_user_message_only(client: TestClient, monkeypatch):
         with client.stream(
             "POST",
             f"/api/v1/sessions/{session_id}/messages/retry/stream",
-            json={"text_model": "kimi-k2.6"},
+            json={"text_model": "kimi-k3"},
         ) as response:
             assert response.status_code == 200
             body = "".join(response.iter_text())

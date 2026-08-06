@@ -13,6 +13,8 @@ def test_node_crud_and_position(client: TestClient) -> None:
     )
     assert created.status_code == 201
     node_id = created.json()["id"]
+    assert created.json()["understanding_level"] == "NEEDS_WORK"
+    assert created.json()["paper_references"] == []
 
     moved = client.patch(f"/api/v1/nodes/{node_id}/position", json={"x": 100, "y": 200})
     assert moved.status_code == 200
@@ -21,6 +23,10 @@ def test_node_crud_and_position(client: TestClient) -> None:
 
     updated = client.patch(f"/api/v1/nodes/{node_id}", json={"title": "Updated"})
     assert updated.json()["title"] == "Updated"
+
+    leveled = client.patch(f"/api/v1/nodes/{node_id}", json={"understanding_level": "BASIC"})
+    assert leveled.status_code == 200
+    assert leveled.json()["understanding_level"] == "BASIC"
 
     assert client.delete(f"/api/v1/nodes/{node_id}").status_code == 204
     assert client.get(f"/api/v1/nodes/{node_id}").status_code == 404

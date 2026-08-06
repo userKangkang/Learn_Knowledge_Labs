@@ -91,7 +91,7 @@ export async function streamMessage(
     content: string;
     attachment_ids?: string[];
     web_search?: boolean;
-    text_model?: "deepseek-v4-pro" | "kimi-k2.6";
+    text_model?: "deepseek-v4-flash" | "kimi-k3";
   },
   onEvent: SseHandler,
   signal?: AbortSignal,
@@ -109,7 +109,7 @@ export async function retryStreamMessage(
   sessionId: string,
   body: {
     web_search?: boolean;
-    text_model?: "deepseek-v4-pro" | "kimi-k2.6";
+    text_model?: "deepseek-v4-flash" | "kimi-k3";
   },
   onEvent: SseHandler,
   signal?: AbortSignal,
@@ -155,7 +155,7 @@ export async function streamEphemeralTempChat(
     content: string;
     prior_turns?: TempTurn[];
     web_search?: boolean;
-    text_model?: "deepseek-v4-pro" | "kimi-k2.6";
+    text_model?: "deepseek-v4-flash" | "kimi-k3";
   },
   onEvent: SseHandler,
   signal?: AbortSignal,
@@ -174,7 +174,7 @@ export async function streamBranchMessage(
   body: {
     content: string;
     web_search?: boolean;
-    text_model?: "deepseek-v4-pro" | "kimi-k2.6";
+    text_model?: "deepseek-v4-flash" | "kimi-k3";
   },
   onEvent: SseHandler,
   signal?: AbortSignal,

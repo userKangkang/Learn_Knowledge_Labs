@@ -22,7 +22,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DEEPSEEK_API_KEY", "DEEPSEEK_API", "deepseek_api_key"),
     )
     deepseek_base_url: str = "https://api.deepseek.com"
-    deepseek_model: str = "deepseek-v4-pro"
+    deepseek_model: str = "deepseek-v4-flash"
     deepseek_search_model: str = "deepseek-v4-flash"
 
     moonshot_api_key: str = Field(
@@ -30,7 +30,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("MOONSHOT_API_KEY", "KIMI_API_KEY", "moonshot_api_key"),
     )
     moonshot_base_url: str = "https://api.moonshot.cn/v1"
-    kimi_model: str = "kimi-k2.6"
+    kimi_model: str = "kimi-k3"
 
     llm_temperature: float = 0.2
     llm_thinking_enabled: bool = True

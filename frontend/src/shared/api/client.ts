@@ -21,9 +21,10 @@ async function parseError(response: Response): Promise<ApiError> {
 }
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const hasFormData = init?.body instanceof FormData;
   const response = await fetch(path, {
     headers: {
-      "Content-Type": "application/json",
+      ...(hasFormData ? {} : { "Content-Type": "application/json" }),
       ...(init?.headers ?? {}),
     },
     ...init,

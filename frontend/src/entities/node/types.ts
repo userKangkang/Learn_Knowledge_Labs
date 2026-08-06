@@ -7,6 +7,20 @@ export type NodeType =
   | "EXAMPLE"
   | "APPLICATION";
 
+export type UnderstandingLevel = "NEEDS_WORK" | "BASIC" | "DEEP";
+
+export interface NodePaperReference {
+  id: string;
+  document_id: string;
+  study_id: string;
+  study_title: string;
+  filename: string;
+  location: string;
+  link_type: "PROBLEM_EVIDENCE" | "MECHANISM" | "RESULT" | "BASELINE";
+  note: string;
+  created_at: string;
+}
+
 export const NODE_TYPES: NodeType[] = [
   "TOPIC",
   "CONCEPT",
@@ -39,4 +53,6 @@ export interface KnowledgeNode {
   updated_at: string;
   current_summary_version_id?: string | null;
   summary_preview?: string | null;
+  understanding_level: UnderstandingLevel;
+  paper_references: NodePaperReference[];
 }

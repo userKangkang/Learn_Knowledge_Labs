@@ -5,9 +5,10 @@ import { ModelSettingsDialog } from "./ModelSettingsDialog";
 
 interface Props {
   title: string;
+  onOpenPaperStudy: () => void;
 }
 
-export function TopBar({ title }: Props) {
+export function TopBar({ title, onOpenPaperStudy }: Props) {
   const saveStatus = useEditorStore((s) => s.saveStatus);
   const selectedEdgeId = useEditorStore((s) => s.selectedEdgeId);
   const requestAddNode = useEditorStore((s) => s.requestAddNode);
@@ -30,6 +31,9 @@ export function TopBar({ title }: Props) {
           <div className="topbar__tools">
             <button type="button" className="btn" onClick={() => requestAddNode()}>
               添加节点
+            </button>
+            <button type="button" className="btn btn--ghost" onClick={onOpenPaperStudy}>
+              论文理解
             </button>
             {selectedEdgeId && (
               <>

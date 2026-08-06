@@ -6,6 +6,7 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  useReactFlow,
   useEdgesState,
   useNodesState,
   type Connection,
@@ -26,7 +27,7 @@ import { ChatDrawer } from "../conversations/ChatDrawer";
 import { useConversationStore } from "../conversations/conversationStore";
 import { NodeInspector } from "../node-inspector/NodeInspector";
 import type { EdgeType } from "../../entities/edge/types";
-import type { KnowledgeNode } from "../../entities/node/types";
+import type { KnowledgeNode, UnderstandingLevel } from "../../entities/node/types";
 import { ApiError } from "../../shared/api/client";
 
 const nodeTypes = { knowledge: KnowledgeNodeView };
@@ -46,6 +47,9 @@ function toFlowNodes(nodes: KnowledgeNode[], selectedNodeId: string | null = nul
       title: node.title,
       nodeType: node.node_type,
       summaryPreview: node.summary_preview ?? null,
+      understandingLevel: node.understanding_level,
+      paperReferenceCount: node.paper_references?.length ?? 0,
+      paperReferenceTitles: node.paper_references?.map((reference) => reference.study_title) ?? [],
     },
   }));
 }
@@ -95,6 +99,7 @@ interface Props {
 
 function GraphCanvasInner({ graphId }: Props) {
   const qc = useQueryClient();
+  const { fitView } = useReactFlow<KnowledgeFlowNode, KnowledgeFlowEdge>();
   const [nodes, setNodes, onNodesChange] = useNodesState<KnowledgeFlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<KnowledgeFlowEdge>([]);
   const positionTimers = useRef<Record<string, number>>({});
@@ -116,6 +121,7 @@ function GraphCanvasInner({ graphId }: Props) {
   const prevAddNonce = useRef(0);
   const prevEditNonce = useRef(0);
   const prevDeleteNonce = useRef(0);
+  const knownNodeIds = useRef<Set<string> | null>(null);
 
   const nodesQuery = useQuery({
     queryKey: ["graphs", graphId, "nodes"],
@@ -127,8 +133,18 @@ function GraphCanvasInner({ graphId }: Props) {
   });
 
   useEffect(() => {
-    if (nodesQuery.data) setNodes(toFlowNodes(nodesQuery.data, selectedNodeId));
-  }, [nodesQuery.data, selectedNodeId, setNodes]);
+    if (!nodesQuery.data) return;
+    setNodes(toFlowNodes(nodesQuery.data, selectedNodeId));
+    const incomingIds = new Set(nodesQuery.data.map((node) => node.id));
+    const previousIds = knownNodeIds.current;
+    knownNodeIds.current = incomingIds;
+    if (!previousIds) return;
+    const newNodeIds = nodesQuery.data.filter((node) => !previousIds.has(node.id)).map((node) => node.id);
+    if (!newNodeIds.length) return;
+    window.requestAnimationFrame(() => {
+      void fitView({ nodes: newNodeIds.map((id) => ({ id })), padding: 0.35, duration: 300 });
+    });
+  }, [fitView, nodesQuery.data, selectedNodeId, setNodes]);
 
   useEffect(() => {
     if (!edgesQuery.data) return;
@@ -272,7 +288,7 @@ function GraphCanvasInner({ graphId }: Props) {
   }, [selectedNodeId, edgeDialogMode, createRelatedNode]);
 
   const updateNodeMutation = useMutation({
-    mutationFn: ({ nodeId, ...payload }: { nodeId: string; title: string; node_type: KnowledgeNode["node_type"] }) =>
+    mutationFn: ({ nodeId, ...payload }: { nodeId: string; title: string; node_type: KnowledgeNode["node_type"]; understanding_level: UnderstandingLevel }) =>
       api.updateNode(nodeId, payload),
     onSuccess: async () => {
       setSaveStatus("saved");
@@ -459,6 +475,7 @@ function GraphCanvasInner({ graphId }: Props) {
           <NodeInspector
             node={selectedNode}
             onClose={() => setSelectedNodeId(null)}
+            onPaperReferenceAdded={invalidateGraph}
             onSave={async (payload) => {
               if (!selectedNode) return;
               setSaveStatus("saving");

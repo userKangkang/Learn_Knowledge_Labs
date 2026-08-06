@@ -207,7 +207,8 @@ class ChatStreamService:
             exclude_message_ids={user_message.id},
             target_provider=provider,
         )
-        assert build.snapshot_id
+        if not build.snapshot_id:
+            raise AppError("SNAPSHOT_MISSING", "上下文快照未生成", status_code=500)
 
         assistant_message = ChatMessage(
             id=str(uuid4()),

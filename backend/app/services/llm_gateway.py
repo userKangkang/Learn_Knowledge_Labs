@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Iterator
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -115,13 +117,15 @@ class LLMGateway:
     ) -> Iterator[StreamChunk]:
         self.require_provider("kimi")
         url = f"{self.settings.moonshot_base_url.rstrip('/')}/chat/completions"
-        # kimi-k2.6 / k3: do NOT pass temperature — thinking mode is fixed at 1.0;
+        # Kimi K3: do NOT pass temperature — thinking mode is fixed at 1.0;
         # other values return invalid_request_error.
         body: dict[str, Any] = {
             "model": model,
             "messages": [{"role": "system", "content": system_prompt}, *messages],
             "stream": True,
         }
+        if model == "kimi-k3":
+            body["reasoning_effort"] = self.settings.llm_reasoning_effort
         yield from self._iter_chat_sse(
             url,
             body,
@@ -131,6 +135,65 @@ class LLMGateway:
                 "Accept": "text/event-stream",
             },
         )
+
+    def extract_kimi_file(self, *, path: str, filename: str, content_type: str) -> str:
+        """Upload a document to Kimi's file-extract API and return extracted text.
+
+        The remote file is deleted immediately after extraction. The returned text is
+        then supplied to the chat request explicitly because file ids are not chat
+        context references in Moonshot's API.
+        """
+        self.require_provider("kimi")
+        base_url = self.settings.moonshot_base_url.rstrip("/")
+        headers = {"Authorization": f"Bearer {self.settings.moonshot_api_key}"}
+        file_id: str | None = None
+        try:
+            with httpx.Client(timeout=httpx.Timeout(300.0, connect=30.0)) as client:
+                with Path(path).open("rb") as handle:
+                    response = client.post(
+                        f"{base_url}/files",
+                        headers=headers,
+                        data={"purpose": "file-extract"},
+                        files={"file": (filename, handle, content_type)},
+                    )
+                if response.status_code >= 400:
+                    raise AppError(
+                        "KIMI_FILE_UPLOAD_FAILED",
+                        f"Kimi 文件上传失败（HTTP {response.status_code}）：{response.text[:500]}",
+                        status_code=502,
+                    )
+                payload = response.json()
+                file_id = str(payload.get("id") or "")
+                if not file_id:
+                    raise AppError("KIMI_FILE_UPLOAD_FAILED", "Kimi 没有返回文件 id", status_code=502)
+                extracted = client.get(f"{base_url}/files/{file_id}/content", headers=headers)
+                if extracted.status_code >= 400:
+                    raise AppError(
+                        "KIMI_FILE_EXTRACT_FAILED",
+                        f"Kimi 文件解析失败（HTTP {extracted.status_code}）：{extracted.text[:500]}",
+                        status_code=502,
+                    )
+                try:
+                    content_payload = extracted.json()
+                except ValueError:
+                    return extracted.text
+                return str(
+                    content_payload.get("content")
+                    or content_payload.get("text")
+                    or content_payload.get("file_content")
+                    or ""
+                )
+        except AppError:
+            raise
+        except (OSError, httpx.HTTPError, ValueError) as error:
+            raise AppError("KIMI_FILE_EXTRACT_FAILED", f"无法解析论文文件：{error}", status_code=502) from error
+        finally:
+            if file_id:
+                try:
+                    with httpx.Client(timeout=30.0) as client:
+                        client.delete(f"{base_url}/files/{file_id}", headers=headers)
+                except httpx.HTTPError:
+                    pass
 
     def _stream_responses_with_search(
         self,
@@ -160,7 +223,21 @@ class LLMGateway:
             },
         )
 
-    def _iter_chat_sse(self, url: str, body: dict[str, Any], *, headers: dict[str, str]) -> Iterator[StreamChunk]:
+    def _iter_chat_sse(
+        self,
+        url: str,
+        body: dict[str, Any],
+        *,
+        headers: dict[str, str],
+        retry_attempt: int = 0,
+    ) -> Iterator[StreamChunk]:
+        """Read a chat stream, retrying one pre-output transport disconnect.
+
+        A TLS EOF before the first SSE event is safe to replay: nothing has been
+        shown or persisted yet.  Once any event has been yielded, retrying would
+        risk showing a duplicated answer, so the original error is surfaced.
+        """
+        yielded_any_chunk = False
         try:
             with httpx.Client(timeout=httpx.Timeout(300.0, connect=30.0)) as client:
                 with client.stream("POST", url, headers=headers, json=body) as response:
@@ -195,15 +272,33 @@ class LLMGateway:
                                 chunk.content_delta = content
                             chunk.finish_reason = choices[0].get("finish_reason")
                         if chunk.content_delta or chunk.input_tokens is not None or chunk.finish_reason:
+                            yielded_any_chunk = True
                             yield chunk
         except AppError:
             raise
         except httpx.TimeoutException as error:
+            if not yielded_any_chunk and retry_attempt == 0:
+                time.sleep(0.5)
+                yield from self._iter_chat_sse(url, body, headers=headers, retry_attempt=1)
+                return
             raise AppError("LLM_TIMEOUT", "模型请求超时", status_code=504) from error
         except httpx.HTTPError as error:
+            if not yielded_any_chunk and retry_attempt == 0:
+                time.sleep(0.5)
+                yield from self._iter_chat_sse(url, body, headers=headers, retry_attempt=1)
+                return
             raise AppError("LLM_UNAVAILABLE", f"无法连接模型服务：{error}", status_code=503) from error
 
-    def _iter_responses_sse(self, url: str, body: dict[str, Any], *, headers: dict[str, str]) -> Iterator[StreamChunk]:
+    def _iter_responses_sse(
+        self,
+        url: str,
+        body: dict[str, Any],
+        *,
+        headers: dict[str, str],
+        retry_attempt: int = 0,
+    ) -> Iterator[StreamChunk]:
+        """Apply the same safe retry policy to Responses API streams."""
+        yielded_any_chunk = False
         try:
             with httpx.Client(timeout=httpx.Timeout(300.0, connect=30.0)) as client:
                 with client.stream("POST", url, headers=headers, json=body) as response:
@@ -237,13 +332,16 @@ class LLMGateway:
                         if etype == "response.output_text.delta":
                             delta = payload.get("delta")
                             if isinstance(delta, str) and delta:
+                                yielded_any_chunk = True
                                 yield StreamChunk(content_delta=delta)
                         elif etype in {
                             "response.web_search_call.in_progress",
                             "response.web_search_call.searching",
                         }:
+                            yielded_any_chunk = True
                             yield StreamChunk(status_text="正在联网搜索…")
                         elif etype == "response.web_search_call.completed":
+                            yielded_any_chunk = True
                             yield StreamChunk(status_text="搜索完成，正在整理回答…")
                         elif etype in {"response.completed", "response.incomplete"}:
                             resp = payload.get("response") or {}
@@ -265,6 +363,14 @@ class LLMGateway:
         except AppError:
             raise
         except httpx.TimeoutException as error:
+            if not yielded_any_chunk and retry_attempt == 0:
+                time.sleep(0.5)
+                yield from self._iter_responses_sse(url, body, headers=headers, retry_attempt=1)
+                return
             raise AppError("LLM_TIMEOUT", "DeepSeek 请求超时", status_code=504) from error
         except httpx.HTTPError as error:
+            if not yielded_any_chunk and retry_attempt == 0:
+                time.sleep(0.5)
+                yield from self._iter_responses_sse(url, body, headers=headers, retry_attempt=1)
+                return
             raise AppError("LLM_UNAVAILABLE", f"无法连接 DeepSeek：{error}", status_code=503) from error

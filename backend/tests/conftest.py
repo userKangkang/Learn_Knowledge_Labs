@@ -25,6 +25,14 @@ from app.models import (  # noqa: F401
     MessageRevision,
     NodeSummaryVersion,
     SessionContextPolicy,
+    PaperConceptItem,
+    PaperConceptMap,
+    PaperConceptRelation,
+    PaperProblemCard,
+    PaperStudy,
+    PaperStudyDocument,
+    PaperStudyOverview,
+    KnowledgeNodePaperReference,
 )
 
 

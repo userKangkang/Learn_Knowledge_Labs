@@ -15,6 +15,7 @@ class KnowledgeNode(Base):
     node_type: Mapped[str] = mapped_column(String(32), nullable=False)
     position_x: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     position_y: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    understanding_level: Mapped[str] = mapped_column(String(24), nullable=False, default="NEEDS_WORK")
     current_summary_version_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
@@ -26,3 +27,4 @@ class KnowledgeNode(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     graph = relationship("KnowledgeGraph", back_populates="nodes")
+    paper_references = relationship("KnowledgeNodePaperReference", back_populates="node", cascade="all, delete-orphan")

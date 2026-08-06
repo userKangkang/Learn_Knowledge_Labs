@@ -63,7 +63,7 @@ def main() -> None:
             f"{base}/chat/completions",
             headers=headers,
             json={
-                "model": "deepseek-v4-pro",
+                "model": "deepseek-v4-flash",
                 "messages": [{"role": "user", "content": prompt}],
                 "thinking": {"type": "enabled"},
                 "reasoning_effort": "high",
@@ -71,19 +71,19 @@ def main() -> None:
                 "stream": False,
             },
         )
-        summarize("chat+thinking+web_search v4-pro", r1)
+        summarize("chat+thinking+web_search v4-flash", r1)
 
         r2 = client.post(
             f"{base}/responses",
             headers=headers,
             json={
-                "model": "deepseek-v4-pro",
+                "model": "deepseek-v4-flash",
                 "input": prompt,
                 "tools": [{"type": "web_search"}],
                 "reasoning": {"effort": "high"},
             },
         )
-        summarize("responses+reasoning+web_search v4-pro", r2)
+        summarize("responses+reasoning+web_search v4-flash", r2)
 
         r3 = client.post(
             f"{base}/responses",

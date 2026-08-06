@@ -1,6 +1,6 @@
 import { apiRequest } from "../../shared/api/client";
 import type { KnowledgeEdge, EdgeType } from "../../entities/edge/types";
-import type { KnowledgeNode, NodeType } from "../../entities/node/types";
+import type { KnowledgeNode, NodeType, UnderstandingLevel } from "../../entities/node/types";
 
 export function listNodes(graphId: string) {
   return apiRequest<KnowledgeNode[]>(`/api/v1/graphs/${graphId}/nodes`);
@@ -16,9 +16,20 @@ export function createNode(
   });
 }
 
-export function updateNode(nodeId: string, payload: { title?: string; node_type?: NodeType }) {
+export function updateNode(nodeId: string, payload: { title?: string; node_type?: NodeType; understanding_level?: UnderstandingLevel }) {
   return apiRequest<KnowledgeNode>(`/api/v1/nodes/${nodeId}`, {
     method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function listPaperStudyOptions(graphId: string) {
+  return apiRequest<Array<{ id: string; title: string; document: { id: string; filename: string } | null }>>(`/api/v1/graphs/${graphId}/paper-studies`);
+}
+
+export function addNodePaperReference(nodeId: string, payload: { document_id: string; location?: string; link_type?: string; note?: string }) {
+  return apiRequest<KnowledgeNode>(`/api/v1/nodes/${nodeId}/paper-references`, {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }

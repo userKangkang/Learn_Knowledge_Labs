@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.repositories.context_repo import ContextRepository
+from app.models.paper_study import PaperStudy
 from app.repositories.message_repo import MessageRepository
 from app.repositories.node_repo import NodeRepository
 from app.repositories.session_repo import SessionRepository
@@ -23,3 +24,6 @@ def soft_delete_graph_content(db: Session, graph_id: str) -> None:
     nodes = NodeRepository(db)
     for node in nodes.list_active_by_graph(graph_id):
         soft_delete_node_content(db, node.id)
+    for study in db.query(PaperStudy).filter(PaperStudy.graph_id == graph_id).all():
+        db.delete(study)
+    db.flush()

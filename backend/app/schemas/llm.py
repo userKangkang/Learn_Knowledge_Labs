@@ -3,7 +3,7 @@ from typing import Literal
 
 from app.schemas.common import APIModel, LLMRequestStatus
 
-TextModelChoice = Literal["deepseek-v4-pro", "kimi-k2.6"]
+TextModelChoice = Literal["deepseek-v4-flash", "kimi-k3"]
 
 
 class StreamMessageCreate(APIModel):

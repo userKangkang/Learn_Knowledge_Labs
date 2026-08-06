@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from app.errors import NotFoundError
+from app.errors import AppError, NotFoundError
 from app.models.context import ContextSnapshot, ContextSnapshotItem
 from app.models.message import ChatMessage
 from app.repositories.attachment_repo import AttachmentRepository
@@ -82,7 +81,8 @@ class ContextBuilder:
 
         self.policies.get_or_create_default(session_id)
         policy = self.contexts.get_policy_by_session(session_id)
-        assert policy is not None
+        if policy is None:
+            raise AppError("CONTEXT_POLICY_MISSING", "上下文策略初始化失败", status_code=500)
 
         items: list[ItemDraft] = []
         order = 0
@@ -286,7 +286,7 @@ class ContextBuilder:
             n = session_source.last_n_turns or 1
             return messages[-(n * 2) :]
         if mode == ConversationMode.SELECTED_MESSAGES:
-            selected = set(json.loads(session_source.selected_message_ids or "[]"))
+            selected = set(session_source.selected_message_ids or [])
             return [m for m in messages if m.id in selected]
         return []
 

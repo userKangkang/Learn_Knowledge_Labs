@@ -1,4 +1,3 @@
-import json
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
@@ -150,7 +149,7 @@ class ContextPolicyService:
                     source_session_id=s.source_session_id,
                     conversation_mode=ConversationMode(s.conversation_mode),
                     last_n_turns=s.last_n_turns,
-                    selected_message_ids=json.loads(s.selected_message_ids or "[]"),
+                    selected_message_ids=list(s.selected_message_ids or []),
                     order_index=s.order_index,
                 )
                 for s in source.session_sources
@@ -184,7 +183,8 @@ class ContextPolicyService:
         node = self._require_node(session.node_id)
         self.get_or_create_default(session_id)
         policy = self.contexts.get_policy_by_session(session_id)
-        assert policy is not None
+        if policy is None:
+            raise AppError("CONTEXT_POLICY_MISSING", "上下文策略初始化失败", status_code=500)
         return self._to_read(policy, node)
 
     def replace_policy(self, session_id: str, payload: ContextPolicyUpdate) -> ContextPolicyRead:
@@ -216,14 +216,15 @@ class ContextPolicyService:
                         source_session_id=session_payload.source_session_id,
                         conversation_mode=session_payload.conversation_mode.value,
                         last_n_turns=session_payload.last_n_turns,
-                        selected_message_ids=json.dumps(session_payload.selected_message_ids or []),
+                        selected_message_ids=list(session_payload.selected_message_ids or []),
                         order_index=session_payload.order_index if session_payload.order_index else idx,
                     )
                 )
 
         self.db.commit()
         policy = self.contexts.get_policy_by_session(session_id)
-        assert policy is not None
+        if policy is None:
+            raise AppError("CONTEXT_POLICY_MISSING", "上下文策略保存后无法读取", status_code=500)
         return self._to_read(policy, node)
 
     def list_candidates(self, session_id: str) -> ContextCandidatesRead:

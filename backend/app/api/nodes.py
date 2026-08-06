@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import db_session
-from app.schemas.node import NodeCreate, NodePositionUpdate, NodeRead, NodeUpdate
+from app.schemas.node import NodeCreate, NodePaperReferenceCreate, NodePositionUpdate, NodeRead, NodeUpdate
 from app.services.node_service import NodeService
 
 router = APIRouter(tags=["nodes"])
@@ -26,6 +26,11 @@ def get_node(node_id: str, db: Session = Depends(db_session)) -> NodeRead:
 @router.patch("/nodes/{node_id}", response_model=NodeRead)
 def update_node(node_id: str, payload: NodeUpdate, db: Session = Depends(db_session)) -> NodeRead:
     return NodeService(db).update_node(node_id, payload)
+
+
+@router.post("/nodes/{node_id}/paper-references", response_model=NodeRead)
+def add_paper_reference(node_id: str, payload: NodePaperReferenceCreate, db: Session = Depends(db_session)) -> NodeRead:
+    return NodeService(db).add_paper_reference(node_id, payload)
 
 
 @router.patch("/nodes/{node_id}/position", response_model=NodeRead)

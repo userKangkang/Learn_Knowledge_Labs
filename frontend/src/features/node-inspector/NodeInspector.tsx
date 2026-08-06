@@ -4,21 +4,27 @@ import {
   NODE_TYPE_LABELS,
   type KnowledgeNode,
   type NodeType,
+  type UnderstandingLevel,
 } from "../../entities/node/types";
 import { ApiError } from "../../shared/api/client";
 import { SessionList } from "../conversations/SessionList";
 import { SummaryPanel } from "../summaries/SummaryPanel";
+import * as graphApi from "../graph-editor/api";
 
 interface Props {
   node: KnowledgeNode | null;
   onClose: () => void;
-  onSave: (payload: { title: string; node_type: NodeType }) => Promise<void>;
+  onSave: (payload: { title: string; node_type: NodeType; understanding_level: UnderstandingLevel }) => Promise<void>;
   onDelete: () => Promise<void>;
+  onPaperReferenceAdded?: () => Promise<void>;
 }
 
-export function NodeInspector({ node, onClose, onSave, onDelete }: Props) {
+export function NodeInspector({ node, onClose, onSave, onDelete, onPaperReferenceAdded }: Props) {
   const [title, setTitle] = useState("");
   const [nodeType, setNodeType] = useState<NodeType>("CONCEPT");
+  const [understandingLevel, setUnderstandingLevel] = useState<UnderstandingLevel>("NEEDS_WORK");
+  const [paperStudies, setPaperStudies] = useState<Array<{ id: string; title: string; document: { id: string; filename: string } | null }>>([]);
+  const [paperDocumentId, setPaperDocumentId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -26,7 +32,10 @@ export function NodeInspector({ node, onClose, onSave, onDelete }: Props) {
     if (!node) return;
     setTitle(node.title);
     setNodeType(node.node_type);
+    setUnderstandingLevel(node.understanding_level);
+    setPaperDocumentId("");
     setError(null);
+    void graphApi.listPaperStudyOptions(node.graph_id).then(setPaperStudies).catch(() => setPaperStudies([]));
   }, [node]);
 
   if (!node) {
@@ -62,6 +71,25 @@ export function NodeInspector({ node, onClose, onSave, onDelete }: Props) {
         </select>
       </label>
 
+      <label>
+        理解程度
+        <select value={understandingLevel} onChange={(e) => setUnderstandingLevel(e.target.value as UnderstandingLevel)}>
+          <option value="NEEDS_WORK">还需学习</option>
+          <option value="BASIC">大致了解</option>
+          <option value="DEEP">深度理解</option>
+        </select>
+      </label>
+
+      <section className="inspector__slot">
+        <div className="inspector__slot-head"><h3>关联论文</h3><span className="slot-badge">{node.paper_references.length} 篇</span></div>
+        {node.paper_references.length ? <ul className="node-paper-reference-list">{node.paper_references.map((reference) => <li key={reference.id} title={reference.location || reference.filename}><strong>{reference.study_title}</strong><span>{reference.filename}</span>{reference.location && <small>{reference.location}</small>}</li>)}</ul> : <p className="muted" style={{ margin: 0, fontSize: 12 }}>尚未关联论文</p>}
+        <select value={paperDocumentId} onChange={(e) => setPaperDocumentId(e.target.value)}>
+          <option value="">选择论文后关联</option>
+          {paperStudies.filter((study) => study.document).map((study) => <option key={study.document!.id} value={study.document!.id}>{study.title} · {study.document!.filename}</option>)}
+        </select>
+        <button type="button" className="btn btn--ghost" disabled={busy || !paperDocumentId} onClick={async () => { setBusy(true); setError(null); try { await graphApi.addNodePaperReference(node.id, { document_id: paperDocumentId }); setPaperDocumentId(""); await onPaperReferenceAdded?.(); } catch (err) { setError(err instanceof Error ? err.message : "关联论文失败"); } finally { setBusy(false); } }}>关联论文</button>
+      </section>
+
       <SummaryPanel nodeId={node.id} graphId={node.graph_id} />
       <SessionList nodeId={node.id} />
       <p className="muted" style={{ margin: 0, fontSize: 12 }}>
@@ -79,7 +107,7 @@ export function NodeInspector({ node, onClose, onSave, onDelete }: Props) {
             setBusy(true);
             setError(null);
             try {
-              await onSave({ title: title.trim(), node_type: nodeType });
+              await onSave({ title: title.trim(), node_type: nodeType, understanding_level: understandingLevel });
             } catch (err) {
               setError(err instanceof Error ? err.message : "保存失败");
             } finally {

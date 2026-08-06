@@ -17,6 +17,15 @@ class SummaryRepository:
         )
         return self.db.scalars(stmt).first()
 
+    def get_active_many(self, version_ids: list[str]) -> list[NodeSummaryVersion]:
+        if not version_ids:
+            return []
+        stmt = select(NodeSummaryVersion).where(
+            NodeSummaryVersion.id.in_(version_ids),
+            NodeSummaryVersion.deleted_at.is_(None),
+        )
+        return list(self.db.scalars(stmt).all())
+
     def list_active_by_node(self, node_id: str) -> list[NodeSummaryVersion]:
         stmt = (
             select(NodeSummaryVersion)

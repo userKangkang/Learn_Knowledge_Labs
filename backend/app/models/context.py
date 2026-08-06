@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -52,7 +52,7 @@ class ContextSessionSource(Base):
     source_session_id: Mapped[str] = mapped_column(String(36), ForeignKey("conversation_sessions.id"), nullable=False)
     conversation_mode: Mapped[str] = mapped_column(String(32), nullable=False)
     last_n_turns: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    selected_message_ids: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    selected_message_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     order_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
