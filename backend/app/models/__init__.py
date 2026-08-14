@@ -23,6 +23,7 @@ from app.models.paper_study import (
 )
 from app.models.message import ChatMessage, MessageRevision
 from app.models.node import KnowledgeNode
+from app.models.problem_map import ProblemCardLink, ProblemMapPosition, SharedProblem, SharedProblemEdge
 from app.models.session import ConversationSession
 from app.models.summary import NodeSummaryVersion
 
@@ -51,4 +52,8 @@ __all__ = [
     "PaperConceptItem",
     "PaperConceptRelation",
     "KnowledgeNodePaperReference",
+    "SharedProblem",
+    "SharedProblemEdge",
+    "ProblemCardLink",
+    "ProblemMapPosition",
 ]

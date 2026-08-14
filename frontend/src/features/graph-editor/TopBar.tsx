@@ -5,10 +5,11 @@ import { ModelSettingsDialog } from "./ModelSettingsDialog";
 
 interface Props {
   title: string;
+  graphId: string;
   onOpenPaperStudy: () => void;
 }
 
-export function TopBar({ title, onOpenPaperStudy }: Props) {
+export function TopBar({ title, graphId, onOpenPaperStudy }: Props) {
   const saveStatus = useEditorStore((s) => s.saveStatus);
   const selectedEdgeId = useEditorStore((s) => s.selectedEdgeId);
   const requestAddNode = useEditorStore((s) => s.requestAddNode);
@@ -35,6 +36,9 @@ export function TopBar({ title, onOpenPaperStudy }: Props) {
             <button type="button" className="btn btn--ghost" onClick={onOpenPaperStudy}>
               论文理解
             </button>
+            <Link to={`/graphs/${graphId}/problem-map`} className="btn btn--ghost">
+              论文-问题导图
+            </Link>
             {selectedEdgeId && (
               <>
                 <button type="button" className="btn btn--ghost" onClick={() => requestEditSelectedEdge()}>

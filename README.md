@@ -86,6 +86,18 @@
 - 回到原文锚点，由用户填写解释并标记“能解释 / 部分理解 / 仍卡住”。完成的是一个问题理解切片，不是整篇论文阅读或学习路线的完成
 - 该流程默认不携带知识图旧对话、不联网搜索，也不会自动判定用户已经理解
 
+### 论文-问题导图
+
+在知识图与单篇论文解读之上，把“论文之间靠什么问题连起来”：
+
+- 独立画布（与知识图画布分开），节点分三类：**论文节点**、**论文问题卡节点**（显示问题标题与定性描述）与**共享问题节点**（共性大问题 / 子场景子问题）
+- 共享问题之间用层级边表达“大问题在不同场景/角度下分化为子问题”，标签可自定义（如“在低资源场景下”）
+- 论文先归属连接到自身的问题卡；问题卡再指向共享问题，关联边标注“核心解决 / 顺带提及”
+- 共享问题节点显示**覆盖度徽标**：被几篇论文指向、其中核心 / 提及各几篇（按论文去重，实时计算）
+- “提议关联”按钮：LLM 阅读已确认的问题卡，提议共享问题、层级边与卡片关联；**只提议不落库**，勾选确认后才真正建点连边
+- “搜索相关论文”按钮：人工勾选已有论文，将其暂定理解中的研究场景、核心问题和主要方法作为可预览背景；用户自行填写检索需求、选择 DeepSeek V4 Flash 或带官方 Formula Web Search 的 Kimi K3，并可追加“仅限 CCF-A 类会议论文”的严格筛选约束
+- 论文节点可一键跳回对应的论文理解记录
+
 ### 模型路由（服务端）
 
 | 场景 | 行为 |
@@ -190,6 +202,24 @@ pnpm dev
 
 ![展开旁支](./docs/images/usage/07-branch-expand.png)
 
+#### 3.8 论文-问题导图画布
+
+在知识图顶栏点 **论文-问题导图**。画布按“论文 → 论文问题卡 → 共享问题”分层展示（根问题加大显示）。问题卡节点直接显示标题与定性描述；问题卡→共享问题的实线绿边表示核心解决，虚线灰边表示顺带提及。共享问题节点上的徽标显示覆盖度。
+
+![论文-问题导图画布](./docs/images/usage/08-problem-map-canvas.png)
+
+#### 3.9 选中共享问题
+
+右侧面板可编辑标题/描述、查看覆盖度明细与指向它的问题卡，也可以直接“添加子问题”（自动建节点并连成细分边）。
+
+![共享问题详情](./docs/images/usage/09-problem-map-problem-inspector.png)
+
+#### 3.10 选中论文节点
+
+面板列出该论文的问题卡与已关联的共享问题，可逐卡关联/解除；点 **在论文理解中打开** 直接跳回对应论文的解读流程。
+
+![论文节点详情](./docs/images/usage/10-problem-map-paper-inspector.png)
+
 #### 重新生成截图
 
 前后端本地跑起来后：
@@ -197,6 +227,12 @@ pnpm dev
 ```bash
 cd backend
 uv run --with playwright --with httpx python ../scripts/capture_usage_screenshots.py
+```
+
+论文-问题导图截图（从仓库根目录）：
+
+```bash
+uv run --with playwright --with httpx --project backend python scripts/capture_problem_map_screenshots.py
 ```
 
 ### 4. 运行测试
@@ -214,6 +250,7 @@ uv run pytest
 backend/          FastAPI 应用、迁移、测试
 frontend/         Vite React 客户端
 knowledge_graph_mvp_architecture.md   领域与实现规格
+paper_problem_map_architecture.md     论文-问题导图领域与实现规格
 ```
 
 后端按 `api` / `services` / `models` / `repositories` / `schemas` 分层；前端按 `pages`、`features/*`、`entities/*` 组织。
@@ -223,6 +260,7 @@ knowledge_graph_mvp_architecture.md   领域与实现规格
 ## 明确不做 / 已知局限
 
 - 不自动生成整张知识图，不自动改边/建点  
+- 论文-问题导图不会由 LLM 自动建点连边；提议内容需你确认后才落库
 - 不做全局知识库 RAG、多人协作、间隔复习或掌握度判定  
 - 摘要不会由模型自动写入（需你确认保存）  
 - 流式「取消」依赖单进程内存标志，不适合多 worker 水平扩展（MVP）  

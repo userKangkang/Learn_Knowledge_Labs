@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ApiError } from "../../shared/api/client";
 import { confirmDialog } from "../../shared/ui/dialogStore";
 import * as api from "./api";
 
@@ -73,18 +72,16 @@ export function SummaryPanel({ nodeId, graphId }: Props) {
       setEditingVersionId(null);
       await invalidate();
     },
-    onError: (err: Error) => {
-      setError(err instanceof ApiError ? err.message : err.message);
-    },
+    onError: (err: Error) => setError(err.message),
   });
+
+  const current = currentQuery.data;
 
   return (
     <section className="inspector__slot">
       <div className="inspector__slot-head">
         <h3>摘要</h3>
-        {currentQuery.data && (
-          <span className="slot-badge">v{currentQuery.data.version_number}</span>
-        )}
+        {current && <span className="slot-badge">v{current.version_number}</span>}
       </div>
       <textarea
         className="summary-draft"
@@ -103,17 +100,12 @@ export function SummaryPanel({ nodeId, graphId }: Props) {
         >
           保存为新版本
         </button>
-        {currentQuery.data && (
+        {current && (
           <button
             type="button"
             className="btn btn--ghost"
             disabled={!draft.trim() || updateMutation.isPending}
-            onClick={() =>
-              updateMutation.mutate({
-                versionId: currentQuery.data!.id,
-                content: draft,
-              })
-            }
+            onClick={() => updateMutation.mutate({ versionId: current.id, content: draft })}
           >
             更新当前版本
           </button>

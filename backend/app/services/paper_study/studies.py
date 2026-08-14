@@ -1,11 +1,11 @@
 """CRUD for paper-understanding records (the top-level aggregate)."""
 
-from pathlib import Path
 from uuid import uuid4
 
 from app.models.paper_study import PaperStudy, PaperStudyOverview
-from app.schemas.paper_study import PaperStudyCreate, PaperStudyRead
+from app.schemas.paper_study import PaperStudyCreate, PaperStudyRead, PaperStudyUpdate
 from app.services.paper_study.base import PaperStudyServiceBase
+from app.services.uploads import safe_remove_upload
 
 
 class PaperStudyCrudService(PaperStudyServiceBase):
@@ -25,17 +25,17 @@ class PaperStudyCrudService(PaperStudyServiceBase):
         self.db.refresh(study)
         return self._study_read(study)
 
+    def update_study(self, study_id: str, payload: PaperStudyUpdate) -> PaperStudyRead:
+        study = self._require_study(study_id)
+        study.title = payload.title.strip()
+        self.db.commit()
+        self.db.refresh(study)
+        return self._study_read(study)
+
     def delete_study(self, study_id: str) -> None:
         study = self._require_study(study_id)
         document = self.repo.get_document(study.id)
         if document:
-            path = Path(document.storage_path)
-            upload_root = Path(self.settings.upload_dir).resolve()
-            try:
-                if path.resolve().is_relative_to(upload_root):
-                    path.unlink(missing_ok=True)
-                    path.parent.rmdir()
-            except OSError:
-                pass
+            safe_remove_upload(document.storage_path, remove_parent=True)
         self.db.delete(study)
         self.db.commit()

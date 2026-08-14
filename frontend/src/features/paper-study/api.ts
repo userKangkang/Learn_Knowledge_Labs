@@ -7,6 +7,7 @@ export type PaperSourceTextPreview = { filename: string; content: string; charac
 export const listStudies = (graphId: string) => apiRequest<PaperStudy[]>(`/api/v1/graphs/${graphId}/paper-studies`);
 export const createStudy = (graphId: string, title: string) => apiRequest<PaperStudy>(`/api/v1/graphs/${graphId}/paper-studies`, { method: "POST", body: JSON.stringify({ title }) });
 export const getStudy = (id: string) => apiRequest<PaperStudy>(`/api/v1/paper-studies/${id}`);
+export const updateStudy = (id: string, title: string) => apiRequest<PaperStudy>(`/api/v1/paper-studies/${id}`, { method: "PATCH", body: JSON.stringify({ title }) });
 export const deleteStudy = (id: string) => apiRequest<void>(`/api/v1/paper-studies/${id}`, { method: "DELETE" });
 export async function uploadDocument(id: string, file: File) {
   const body = new FormData(); body.append("file", file);

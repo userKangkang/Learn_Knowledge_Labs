@@ -248,21 +248,32 @@ function ProblemCardView({
 }
 
 function CardEditor({ card, busy, saveCard }: { card: PaperProblemCard; busy: boolean; saveCard: SaveCardFn }) {
+  const savedClaims = card.paper_claims.join("\n");
+  const savedNotSaid = card.paper_not_said.join("\n");
   const [qualitative, setQualitative] = useState(card.qualitative_overview);
   const [technical, setTechnical] = useState(card.technical_interpretation);
-  const [claims, setClaims] = useState(card.paper_claims.join("\n"));
-  const [notSaid, setNotSaid] = useState(card.paper_not_said.join("\n"));
+  const [claims, setClaims] = useState(savedClaims);
+  const [notSaid, setNotSaid] = useState(savedNotSaid);
 
   useEffect(() => {
     setQualitative(card.qualitative_overview);
     setTechnical(card.technical_interpretation);
-    setClaims(card.paper_claims.join("\n"));
-    setNotSaid(card.paper_not_said.join("\n"));
-  }, [card]);
+    setClaims(savedClaims);
+    setNotSaid(savedNotSaid);
+  }, [card.id, card.qualitative_overview, card.technical_interpretation, savedClaims, savedNotSaid]);
+
+  const dirty =
+    qualitative !== card.qualitative_overview ||
+    technical !== card.technical_interpretation ||
+    claims !== savedClaims ||
+    notSaid !== savedNotSaid;
 
   return (
     <div className="problem-card__editor">
-      <strong>修正这张问题卡</strong>
+      <div className="problem-card__editor-heading">
+        <strong>修正这张问题卡</strong>
+        {dirty && <span>有未保存修改</span>}
+      </div>
       <label>
         定性概述
         <textarea value={qualitative} onChange={(e) => setQualitative(e.target.value)} />
@@ -281,7 +292,7 @@ function CardEditor({ card, busy, saveCard }: { card: PaperProblemCard; busy: bo
       </label>
       <button
         className="btn btn--ghost"
-        disabled={busy}
+        disabled={busy || !dirty}
         onClick={() =>
           void saveCard(card, {
             qualitative_overview: qualitative,

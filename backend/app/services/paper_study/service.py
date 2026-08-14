@@ -32,6 +32,9 @@ class PaperStudyService:
     def create_study(self, graph_id: str, payload):
         return self._studies.create_study(graph_id, payload)
 
+    def update_study(self, study_id: str, payload):
+        return self._studies.update_study(study_id, payload)
+
     def delete_study(self, study_id: str) -> None:
         self._studies.delete_study(study_id)
 

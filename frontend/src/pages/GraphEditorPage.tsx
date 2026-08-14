@@ -20,7 +20,7 @@ export function GraphEditorPage() {
 
   return (
     <div className="editor-page">
-      <TopBar title={data.title} onOpenPaperStudy={() => setPaperStudyOpen(true)} />
+      <TopBar title={data.title} graphId={graphId} onOpenPaperStudy={() => setPaperStudyOpen(true)} />
       <GraphCanvas graphId={graphId} />
       <PaperStudyDialog
         open={paperStudyOpen}

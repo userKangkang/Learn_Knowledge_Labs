@@ -29,11 +29,3 @@ export interface ChatMessage {
   created_at: string;
   updated_at: string;
 }
-
-export interface MessageRevision {
-  id: string;
-  message_id: string;
-  revision_number: number;
-  content: string;
-  created_at: string;
-}

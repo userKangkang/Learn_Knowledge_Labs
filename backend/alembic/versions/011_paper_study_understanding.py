@@ -62,7 +62,7 @@ def upgrade() -> None:
         sa.Column("content_type", sa.String(length=128), nullable=False),
         sa.Column("size_bytes", sa.Integer(), nullable=False),
         sa.Column("storage_path", sa.String(length=1024), nullable=False),
-        sa.Column("extracted_text", sa.Text()), sa.Column("evidence_brief", sa.Text()),
+        sa.Column("extracted_text", sa.Text()),
         sa.Column("status", sa.String(length=24), nullable=False, server_default="UPLOADED"), sa.Column("error", sa.Text()),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("(CURRENT_TIMESTAMP)")),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("(CURRENT_TIMESTAMP)")),
@@ -100,7 +100,7 @@ def upgrade() -> None:
         sa.Column("id", sa.String(length=36), primary_key=True), sa.Column("concept_map_id", sa.String(length=36), sa.ForeignKey("paper_concept_maps.id"), nullable=False),
         sa.Column("title", sa.String(length=255), nullable=False), sa.Column("explanation", sa.Text(), nullable=False, server_default=""), sa.Column("category", sa.String(length=24), nullable=False),
         sa.Column("paper_anchor", sa.Text(), nullable=False, server_default=""), sa.Column("graph_node_id", sa.String(length=36), sa.ForeignKey("knowledge_nodes.id")),
-        sa.Column("user_status", sa.String(length=24), nullable=False, server_default="PENDING"), sa.Column("order_index", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("user_status", sa.String(length=24), nullable=False, server_default="NEEDS_WORK"), sa.Column("order_index", sa.Integer(), nullable=False, server_default="0"),
     )
     op.create_index("ix_paper_concept_items_concept_map_id", "paper_concept_items", ["concept_map_id"])
     op.create_table(

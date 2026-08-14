@@ -14,7 +14,7 @@ from app.repositories.session_repo import SessionRepository
 from app.schemas.common import MessageRole, MessageStatus
 from app.schemas.message import MessageCreate, MessageRead, MessageUpdate
 from app.schemas.session import SessionCreate, SessionUpdate
-from app.services.attachment_service import to_attachment_read
+from app.services.attachment_service import AttachmentService, to_attachment_read
 
 
 class ConversationService:
@@ -26,6 +26,7 @@ class ConversationService:
         self.contexts = ContextRepository(db)
         self.attachments = AttachmentRepository(db)
         self.branches = BranchRepository(db)
+        self.attachment_service = AttachmentService(db)
 
     def _require_node(self, node_id: str):
         node = self.nodes.get_active(node_id)
@@ -66,6 +67,7 @@ class ConversationService:
 
     def delete_session(self, session_id: str) -> None:
         session = self._require_session(session_id)
+        self.attachment_service.cleanup_sessions([session_id])
         self.contexts.soft_delete_policy_by_session(session_id)
         self.branches.soft_delete_by_sessions([session_id])
         self.messages.soft_delete_by_sessions([session_id])

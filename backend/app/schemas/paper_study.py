@@ -19,6 +19,10 @@ class PaperStudyCreate(APIModel):
     title: str = Field(min_length=1, max_length=255)
 
 
+class PaperStudyUpdate(APIModel):
+    title: str = Field(min_length=1, max_length=255)
+
+
 class PaperDocumentRead(TimestampRead):
     id: str
     filename: str

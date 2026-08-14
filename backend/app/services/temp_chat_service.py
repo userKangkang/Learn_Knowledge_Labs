@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Iterator
 from typing import Any
 from uuid import uuid4
@@ -10,26 +9,26 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.errors import AppError, NotFoundError
 from app.models.branch import ConversationBranch
+from app.models.context import ContextSnapshot
 from app.models.llm_request import LLMRequest
 from app.models.message import ChatMessage, MessageRevision
+from app.repositories.attachment_repo import AttachmentRepository
 from app.repositories.branch_repo import BranchRepository
+from app.repositories.context_repo import ContextRepository
 from app.repositories.llm_request_repo import LLMRequestRepository
 from app.repositories.message_repo import MessageRepository
 from app.repositories.session_repo import SessionRepository
 from app.schemas.branch import BranchCreate, BranchRead, BranchStreamCreate, EphemeralStreamCreate, TempTurn
 from app.schemas.common import LLMRequestStatus, MessageRole, MessageStatus
 from app.schemas.message import MessageRead
-from app.services import cancel_registry
 from app.services.attachment_service import to_attachment_read
 from app.services.chat_stream_service import _resolve_route
 from app.services.context_builder import estimate_tokens
 from app.services.history_for_llm import build_transcript_messages
 from app.services.llm_gateway import LLMGateway
+from app.services.llm_stream import LLMStreamPersistence, stream_llm_turn
 from app.services.llm_prompts import SYSTEM_PROMPT, TEMP_ASK_SYSTEM_ADDON
-
-
-def _sse(event: str, data: dict[str, Any]) -> str:
-    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+from app.services.sse import sse_event
 
 
 class TempChatService:
@@ -62,8 +61,6 @@ class TempChatService:
         return anchor
 
     def _to_message_reads(self, messages: list[ChatMessage]) -> list[MessageRead]:
-        from app.repositories.attachment_repo import AttachmentRepository
-
         attachments = AttachmentRepository(self.db).list_by_message_ids([m.id for m in messages])
         by_message: dict[str, list] = {m.id: [] for m in messages}
         for attachment in attachments:
@@ -303,12 +300,6 @@ class TempChatService:
             MessageRevision(id=str(uuid4()), message_id=assistant_message.id, revision_number=1, content="")
         )
 
-        # Snapshot optional for branch; skip full persist to keep mainline snapshots clean.
-        # Create a minimal placeholder snapshot via builder with persist=False — LLMRequest needs snapshot_id.
-        # Use a lightweight synthetic snapshot row.
-        from app.models.context import ContextSnapshot
-        from app.repositories.context_repo import ContextRepository
-
         snapshot = ContextSnapshot(
             id=str(uuid4()),
             node_id=session.node_id,
@@ -359,155 +350,27 @@ class TempChatService:
         }
 
     def stream(self, prepared: dict[str, Any]) -> Iterator[str]:
-        from app.services.chat_stream_service import ChatStreamService
-
-        request_id = prepared["request_id"]
-        cancel_registry.clear_cancel(request_id)
         ephemeral = bool(prepared.get("ephemeral"))
-
-        yield _sse(
-            "request_created",
-            {
-                "request_id": request_id,
-                "user_message_id": prepared.get("user_message_id"),
-                "assistant_message_id": prepared.get("assistant_message_id"),
-                "provider": prepared["provider"],
-                "model": prepared["model"],
-                "web_search": prepared["web_search"],
-                "file_mode": False,
+        persistence = None if ephemeral else LLMStreamPersistence(self.db)
+        yield from stream_llm_turn(
+            prepared,
+            gateway=self.gateway,
+            set_streaming=None if persistence is None else lambda: persistence.set_streaming(prepared["request_id"]),
+            finalize=None if persistence is None else (
+                lambda status, content, input_tokens, output_tokens, error_code, error_message: persistence.finalize(
+                    prepared["request_id"],
+                    status=status,
+                    content=content,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    error_code=error_code,
+                    error_message=error_message,
+                )
+            ),
+            extra_created={
                 "ephemeral": ephemeral,
                 "branch_id": prepared.get("branch_id"),
                 "anchor_message_id": prepared.get("anchor_message_id"),
             },
+            extra_completed={"ephemeral": ephemeral},
         )
-        yield _sse(
-            "context_built",
-            {
-                "context_snapshot_id": prepared.get("context_snapshot_id"),
-                "estimated_input_tokens": prepared["estimated_input_tokens"],
-                "truncated": prepared.get("truncated", False),
-            },
-        )
-
-        if not ephemeral:
-            ChatStreamService(self.db)._set_status(request_id, LLMRequestStatus.STREAMING)
-
-        full_text = ""
-        input_tokens = prepared["estimated_input_tokens"]
-        output_tokens: int | None = None
-
-        try:
-            for chunk in self.gateway.stream(
-                provider=prepared["provider"],
-                model=prepared["model"],
-                system_prompt=prepared["system_prompt"],
-                messages=prepared["llm_messages"],
-                web_search=prepared["web_search"],
-            ):
-                if cancel_registry.is_cancelled(request_id):
-                    if not ephemeral:
-                        ChatStreamService(self.db)._finalize(
-                            request_id,
-                            status=LLMRequestStatus.CANCELLED,
-                            content=full_text,
-                            input_tokens=input_tokens,
-                            output_tokens=output_tokens,
-                            error_code="CANCELLED",
-                            error_message="用户取消",
-                        )
-                    yield _sse("cancelled", {"request_id": request_id})
-                    return
-
-                if chunk.input_tokens is not None:
-                    input_tokens = chunk.input_tokens
-                if chunk.output_tokens is not None:
-                    output_tokens = chunk.output_tokens
-                if chunk.status_text:
-                    yield _sse("status", {"request_id": request_id, "message": chunk.status_text})
-                if chunk.content_delta:
-                    full_text += chunk.content_delta
-                    yield _sse(
-                        "delta",
-                        {
-                            "request_id": request_id,
-                            "assistant_message_id": prepared.get("assistant_message_id"),
-                            "delta": chunk.content_delta,
-                        },
-                    )
-
-            if cancel_registry.is_cancelled(request_id):
-                if not ephemeral:
-                    ChatStreamService(self.db)._finalize(
-                        request_id,
-                        status=LLMRequestStatus.CANCELLED,
-                        content=full_text,
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                        error_code="CANCELLED",
-                        error_message="用户取消",
-                    )
-                yield _sse("cancelled", {"request_id": request_id})
-                return
-
-            if not full_text.strip():
-                raise AppError("LLM_EMPTY_RESPONSE", "模型返回空内容", status_code=502)
-
-            if output_tokens is None:
-                output_tokens = estimate_tokens(full_text)
-
-            if not ephemeral:
-                ChatStreamService(self.db)._finalize(
-                    request_id,
-                    status=LLMRequestStatus.SUCCEEDED,
-                    content=full_text,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                )
-
-            yield _sse(
-                "completed",
-                {
-                    "request_id": request_id,
-                    "assistant_message_id": prepared.get("assistant_message_id"),
-                    "content": full_text,
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens,
-                    "ephemeral": ephemeral,
-                },
-            )
-        except AppError as error:
-            if not ephemeral:
-                ChatStreamService(self.db)._finalize(
-                    request_id,
-                    status=LLMRequestStatus.FAILED,
-                    content=full_text,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    error_code=error.code,
-                    error_message=error.message,
-                )
-            yield _sse(
-                "failed",
-                {"request_id": request_id, "error_code": error.code, "error_message": error.message},
-            )
-        except Exception as error:  # noqa: BLE001
-            if not ephemeral:
-                ChatStreamService(self.db)._finalize(
-                    request_id,
-                    status=LLMRequestStatus.FAILED,
-                    content=full_text,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    error_code="LLM_UNEXPECTED_ERROR",
-                    error_message=str(error),
-                )
-            yield _sse(
-                "failed",
-                {
-                    "request_id": request_id,
-                    "error_code": "LLM_UNEXPECTED_ERROR",
-                    "error_message": str(error),
-                },
-            )
-        finally:
-            cancel_registry.clear_cancel(request_id)

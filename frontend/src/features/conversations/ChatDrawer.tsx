@@ -3,7 +3,6 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ConversationBranch } from "../../entities/branch/types";
-import type { TextModelChoice } from "../../entities/llm/types";
 import type { ChatMessage, MessageAttachment } from "../../entities/message/types";
 import { listNodes } from "../graph-editor/api";
 import { useEditorStore } from "../graph-editor/editorStore";
@@ -28,7 +27,7 @@ export function ChatDrawer({ graphId }: Props) {
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
 
   const [content, setContent] = useState("");
-  const [textModel, setTextModel] = useState<TextModelChoice>("deepseek-v4-flash");
+  const [textModel, setTextModel] = useState<string>("");
   const [webSearch, setWebSearch] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<MessageAttachment[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -52,9 +51,18 @@ export function ChatDrawer({ graphId }: Props) {
     enabled: drawerOpen && Boolean(graphId),
   });
 
+  const llmSettingsQuery = useQuery({
+    queryKey: ["llm", "settings"],
+    queryFn: api.getLlmSettings,
+    enabled: drawerOpen,
+  });
+
   const sessionsQuery = useQuery({
     queryKey: ["nodes", activeNodeId, "sessions"],
-    queryFn: () => api.listSessions(activeNodeId!),
+    queryFn: () => {
+      if (!activeNodeId) throw new Error("缺少节点");
+      return api.listSessions(activeNodeId);
+    },
     enabled: drawerOpen && Boolean(activeNodeId),
   });
 
@@ -75,15 +83,26 @@ export function ChatDrawer({ graphId }: Props) {
     setStreaming(false);
   }, [activeNodeId]);
 
+  useEffect(() => {
+    const model = llmSettingsQuery.data?.model;
+    if (model && !textModel) setTextModel(model);
+  }, [llmSettingsQuery.data, textModel]);
+
   const messagesQuery = useQuery({
     queryKey: ["sessions", activeSessionId, "messages"],
-    queryFn: () => api.listMessages(activeSessionId!),
+    queryFn: () => {
+      if (!activeSessionId) throw new Error("缺少会话");
+      return api.listMessages(activeSessionId);
+    },
     enabled: drawerOpen && Boolean(activeSessionId),
   });
 
   const branchesQuery = useQuery({
     queryKey: ["sessions", activeSessionId, "branches"],
-    queryFn: () => api.listBranches(activeSessionId!),
+    queryFn: () => {
+      if (!activeSessionId) throw new Error("缺少会话");
+      return api.listBranches(activeSessionId);
+    },
     enabled: drawerOpen && Boolean(activeSessionId),
   });
 
@@ -150,20 +169,10 @@ export function ChatDrawer({ graphId }: Props) {
     }
   };
 
-  const send = async () => {
+  const runTurn = async (note: string, task: (signal: AbortSignal) => Promise<void>) => {
     if (!activeSessionId || streaming) return;
-    const text = content.trim();
-    if (!text && pendingFiles.length === 0) return;
-
-    const hasFiles = pendingFiles.length > 0;
     setError(null);
-    setStatusNote(
-      hasFiles
-        ? "文件解析：强制 Kimi 2.6，将生成详细文字摘要"
-        : webSearch
-          ? "联网：DeepSeek v4-flash + thinking + search"
-          : `纯文字：${textModel}`,
-    );
+    setStatusNote(note);
     setStreaming(true);
     setLiveAssistant(null);
     const controller = new AbortController();
@@ -171,19 +180,7 @@ export function ChatDrawer({ graphId }: Props) {
     requestIdRef.current = null;
 
     try {
-      await api.streamMessage(
-        activeSessionId,
-        {
-          content: text,
-          attachment_ids: pendingFiles.map((f) => f.id),
-          web_search: hasFiles ? false : webSearch,
-          text_model: textModel,
-        },
-        handleStreamEvents,
-        controller.signal,
-      );
-      setContent("");
-      setPendingFiles([]);
+      await task(controller.signal);
       await invalidateMessages();
       setLiveAssistant(null);
       setStatusNote(null);
@@ -200,48 +197,59 @@ export function ChatDrawer({ graphId }: Props) {
     }
   };
 
+  const send = async () => {
+    if (!activeSessionId) return;
+    const text = content.trim();
+    const hasFiles = pendingFiles.length > 0;
+    if (!text && !hasFiles) return;
+
+    await runTurn(
+      hasFiles
+        ? "文件解析：强制 Kimi，将生成详细文字摘要"
+        : webSearch
+          ? `联网：${textModel} + search`
+          : `纯文字：${textModel}`,
+      async (signal) => {
+        await api.streamMessage(
+          activeSessionId,
+          {
+            content: text,
+            attachment_ids: pendingFiles.map((f) => f.id),
+            web_search: hasFiles ? false : webSearch,
+            text_model: textModel,
+          },
+          handleStreamEvents,
+          signal,
+        );
+        setContent("");
+        setPendingFiles([]);
+      },
+    );
+  };
+
   const retryLastUser = async () => {
-    if (!activeSessionId || streaming) return;
+    if (!activeSessionId) return;
     const lastUser = [...(messagesQuery.data ?? [])].reverse().find((m) => m.role === "USER");
     const hasFiles = Boolean(lastUser?.attachments?.length);
-    setError(null);
-    setStatusNote(
-      hasFiles
-        ? "重试文件解析：强制 Kimi 2.6"
-        : webSearch
-          ? "重试联网：DeepSeek v4-flash + thinking + search"
-          : `重试纯文字：${textModel}`,
-    );
-    setStreaming(true);
-    setLiveAssistant(null);
-    const controller = new AbortController();
-    abortRef.current = controller;
-    requestIdRef.current = null;
 
-    try {
-      await api.retryStreamMessage(
-        activeSessionId,
-        {
-          web_search: hasFiles ? false : webSearch,
-          text_model: textModel,
-        },
-        handleStreamEvents,
-        controller.signal,
-      );
-      await invalidateMessages();
-      setLiveAssistant(null);
-      setStatusNote(null);
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") {
-        setError((err as Error).message);
-      }
-      await invalidateMessages();
-      setLiveAssistant(null);
-    } finally {
-      setStreaming(false);
-      abortRef.current = null;
-      requestIdRef.current = null;
-    }
+    await runTurn(
+      hasFiles
+        ? "重试文件解析：强制 Kimi"
+        : webSearch
+          ? `重试联网：${textModel} + search`
+          : `重试纯文字：${textModel}`,
+      async (signal) => {
+        await api.retryStreamMessage(
+          activeSessionId,
+          {
+            web_search: hasFiles ? false : webSearch,
+            text_model: textModel,
+          },
+          handleStreamEvents,
+          signal,
+        );
+      },
+    );
   };
 
   const cancel = async () => {
@@ -430,7 +438,7 @@ export function ChatDrawer({ graphId }: Props) {
         {pendingFiles.length > 0 && (
           <>
             <p className="composer-tip">
-              本轮将用 Kimi 2.6 把附件转成<strong>尽可能详细的文字摘要</strong>。
+              本轮将用 Kimi 把附件转成<strong>尽可能详细的文字摘要</strong>。
               请把指令写短（如「解析这篇」「摘要图中公式」），把本轮主要当作文件解析，而不是同时追问很多开放问题——方便之后切换 DeepSeek。
             </p>
             <ul className="chat-attachments">
@@ -475,23 +483,31 @@ export function ChatDrawer({ graphId }: Props) {
             模型
             <select
               value={textModel}
-              disabled={streaming || pendingFiles.length > 0}
-              onChange={(e) => setTextModel(e.target.value as TextModelChoice)}
-              title={pendingFiles.length > 0 ? "有附件时强制 Kimi 2.6" : "纯文字模型"}
+              disabled={streaming || pendingFiles.length > 0 || !llmSettingsQuery.data}
+              onChange={(e) => setTextModel(e.target.value)}
+              title={pendingFiles.length > 0 ? "有附件时强制 Kimi" : "纯文字模型"}
             >
-              <option value="deepseek-v4-flash">DeepSeek v4-flash</option>
-              <option value="kimi-k3">Kimi K3</option>
+              {llmSettingsQuery.data && (
+                <>
+                  <option value={llmSettingsQuery.data.model}>DeepSeek</option>
+                  <option value={llmSettingsQuery.data.kimi_model}>Kimi</option>
+                </>
+              )}
             </select>
           </label>
           <label className="check-row chat-drawer__web-search">
             <input
               type="checkbox"
               checked={webSearch && pendingFiles.length === 0}
-              disabled={streaming || pendingFiles.length > 0 || textModel !== "deepseek-v4-flash"}
+              disabled={
+                streaming ||
+                pendingFiles.length > 0 ||
+                !llmSettingsQuery.data
+              }
               onChange={(e) => setWebSearch(e.target.checked)}
             />
             联网
-            <span className="muted">（仅 DeepSeek）</span>
+            <span className="muted">（DeepSeek / Kimi）</span>
           </label>
           <input
             ref={fileInputRef}

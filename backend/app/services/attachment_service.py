@@ -13,6 +13,7 @@ from app.repositories.session_repo import SessionRepository
 from app.schemas.attachment import AttachmentRead
 from app.schemas.common import AttachmentExtractStatus
 from app.services.pdf_extract import extract_pdf_text
+from app.services.uploads import safe_remove_upload
 
 ALLOWED_PDF_TYPES = {"application/pdf", "application/x-pdf"}
 ALLOWED_IMAGE_TYPES = {
@@ -151,3 +152,12 @@ class AttachmentService:
             item.message_id = message_id
         self.db.flush()
         return items
+
+    def cleanup_sessions(self, session_ids: list[str]) -> None:
+        """Soft-delete attachments of the given sessions and remove their files."""
+        if not session_ids:
+            return
+        attachments = self.attachments.list_by_session_ids(session_ids)
+        for attachment in attachments:
+            safe_remove_upload(attachment.storage_path)
+        self.attachments.soft_delete_many(attachments)

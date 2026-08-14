@@ -8,8 +8,8 @@ from app.errors import AppError, NotFoundError
 from app.models.paper_study import PaperStudy, PaperStudyMessage
 from app.schemas.paper_study import PaperOverviewUpdate, PaperStudyMessageCreate, PaperStudyRead
 from app.services.paper_study.base import PaperStudyServiceBase
-from app.services.paper_study.helpers import paper_sse
 from app.services.paper_study.prompts import OVERVIEW_CONVERSATION_PROMPT, PROBLEM_MAP_CONVERSATION_PROMPT
+from app.services.sse import sse_event
 
 
 class PaperConversationService(PaperStudyServiceBase):
@@ -104,20 +104,20 @@ class PaperConversationService(PaperStudyServiceBase):
                 system_prompt=prompt, messages=self._conversation_context(study, stage), web_search=False,
             ):
                 if chunk.status_text:
-                    yield paper_sse("status", {"message": chunk.status_text})
+                    yield sse_event("status", {"message": chunk.status_text})
                 if chunk.content_delta:
                     full_text += chunk.content_delta
-                    yield paper_sse("delta", {"delta": chunk.content_delta})
+                    yield sse_event("delta", {"delta": chunk.content_delta})
 
             if not full_text.strip():
                 raise AppError("LLM_EMPTY_RESPONSE", "模型返回空内容", status_code=502)
             self._add_message(study.id, stage, "ASSISTANT", full_text)
             self.db.commit()
-            yield paper_sse("completed", {"content": full_text, "stage": stage})
+            yield sse_event("completed", {"content": full_text, "stage": stage})
         except AppError as error:
-            yield paper_sse("failed", {"error_code": error.code, "error_message": error.message})
+            yield sse_event("failed", {"error_code": error.code, "error_message": error.message})
         except Exception as error:  # noqa: BLE001
-            yield paper_sse("failed", {"error_code": "PAPER_LLM_UNEXPECTED_ERROR", "error_message": str(error)})
+            yield sse_event("failed", {"error_code": "PAPER_LLM_UNEXPECTED_ERROR", "error_message": str(error)})
 
     def update_overview(self, study_id: str, payload: PaperOverviewUpdate) -> PaperStudyRead:
         study = self._require_study(study_id)

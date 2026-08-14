@@ -3,7 +3,6 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ConversationBranch, TempTurn } from "../../entities/branch/types";
 import type { ChatMessage } from "../../entities/message/types";
-import type { TextModelChoice } from "../../entities/llm/types";
 import * as api from "./api";
 
 interface Props {
@@ -11,7 +10,7 @@ interface Props {
   anchor: ChatMessage;
   /** Mainline messages from the start of the session through the anchored assistant reply (inclusive). */
   mainlinePrefix: ChatMessage[];
-  textModel: TextModelChoice;
+  textModel: string;
   webSearch: boolean;
   initialBranch?: ConversationBranch | null;
   onClose: () => void;

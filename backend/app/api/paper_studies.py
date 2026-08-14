@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import db_session
 from app.schemas.paper_study import (
     AttachConceptNode, PaperConceptFinalize, PaperConceptItemRead, PaperConceptItemUpdate, PaperConceptMapRead, PaperDocumentRead, PaperSourceTextPreviewRead,
-    PaperOverviewUpdate, PaperProblemCardCreate, PaperProblemCardRead, PaperProblemCardUpdate, PaperStudyCreate, PaperStudyMessageCreate, PaperStudyRead,
+    PaperOverviewUpdate, PaperProblemCardCreate, PaperProblemCardRead, PaperProblemCardUpdate, PaperStudyCreate, PaperStudyMessageCreate, PaperStudyRead, PaperStudyUpdate,
 )
 from app.services.paper_study import PaperStudyService
 
@@ -23,6 +23,10 @@ def create_study(graph_id: str, payload: PaperStudyCreate, db: Session = Depends
 @router.get("/paper-studies/{study_id}", response_model=PaperStudyRead)
 def get_study(study_id: str, db: Session = Depends(db_session)):
     return PaperStudyService(db).get_study(study_id)
+
+@router.patch("/paper-studies/{study_id}", response_model=PaperStudyRead)
+def update_study(study_id: str, payload: PaperStudyUpdate, db: Session = Depends(db_session)):
+    return PaperStudyService(db).update_study(study_id, payload)
 
 @router.delete("/paper-studies/{study_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_study(study_id: str, db: Session = Depends(db_session)):

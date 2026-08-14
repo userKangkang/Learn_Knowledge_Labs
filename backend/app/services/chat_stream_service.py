@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Iterator
-from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -21,14 +19,12 @@ from app.schemas.common import LLMRequestStatus, MessageRole, MessageStatus
 from app.schemas.llm import RetryStreamCreate, StreamMessageCreate
 from app.services import cancel_registry
 from app.services.attachment_service import AttachmentService
-from app.services.context_builder import ContextBuilder, estimate_tokens
+from app.services.context_builder import ContextBuilder
 from app.services.history_for_llm import build_file_digest_user_content, build_transcript_messages
 from app.services.llm_gateway import LLMGateway
+from app.services.llm_stream import LLMStreamPersistence, stream_llm_turn
 from app.services.llm_prompts import FILE_DIGEST_SYSTEM_ADDON, SYSTEM_PROMPT
-
-
-def _sse(event: str, data: dict[str, Any]) -> str:
-    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+from app.services.sse import sse_event
 
 
 def _compose_snapshot_prompt(content: str, attachments) -> str:
@@ -56,12 +52,14 @@ def _resolve_route(
     if file_mode:
         return "kimi", settings.kimi_model.strip(), False
 
-    if web_search:
-        return "deepseek", settings.deepseek_search_model.strip(), True
-
     choice = (text_model or model or "").strip()
     if not choice:
         choice = settings.kimi_model if settings.default_text_provider == "kimi" else settings.deepseek_model
+
+    if web_search:
+        if choice.startswith("kimi") or choice == settings.kimi_model:
+            return "kimi", settings.kimi_model.strip(), True
+        return "deepseek", settings.deepseek_search_model.strip(), True
 
     if choice.startswith("kimi") or choice == settings.kimi_model:
         return "kimi", settings.kimi_model.strip(), False
@@ -282,154 +280,21 @@ class ChatStreamService:
         }
 
     def stream(self, prepared: dict[str, Any]) -> Iterator[str]:
-        request_id = prepared["request_id"]
-        cancel_registry.clear_cancel(request_id)
-
-        yield _sse(
-            "request_created",
-            {
-                "request_id": request_id,
-                "user_message_id": prepared["user_message_id"],
-                "assistant_message_id": prepared["assistant_message_id"],
-                "provider": prepared["provider"],
-                "model": prepared["model"],
-                "web_search": prepared["web_search"],
-                "file_mode": prepared["file_mode"],
-            },
+        persistence = LLMStreamPersistence(self.db)
+        yield from stream_llm_turn(
+            prepared,
+            gateway=self.gateway,
+            set_streaming=lambda: persistence.set_streaming(prepared["request_id"]),
+            finalize=lambda status, content, input_tokens, output_tokens, error_code, error_message: persistence.finalize(
+                prepared["request_id"],
+                status=status,
+                content=content,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                error_code=error_code,
+                error_message=error_message,
+            ),
         )
-        yield _sse(
-            "context_built",
-            {
-                "context_snapshot_id": prepared["context_snapshot_id"],
-                "estimated_input_tokens": prepared["estimated_input_tokens"],
-                "truncated": prepared["truncated"],
-            },
-        )
-
-        self._set_status(request_id, LLMRequestStatus.STREAMING)
-
-        full_text = ""
-        input_tokens = prepared["estimated_input_tokens"]
-        output_tokens: int | None = None
-
-        try:
-            for chunk in self.gateway.stream(
-                provider=prepared["provider"],
-                model=prepared["model"],
-                system_prompt=prepared["system_prompt"],
-                messages=prepared["llm_messages"],
-                web_search=prepared["web_search"],
-            ):
-                if cancel_registry.is_cancelled(request_id):
-                    self._finalize(
-                        request_id,
-                        status=LLMRequestStatus.CANCELLED,
-                        content=full_text,
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                        error_code="CANCELLED",
-                        error_message="用户取消",
-                    )
-                    yield _sse("cancelled", {"request_id": request_id})
-                    return
-
-                if chunk.input_tokens is not None:
-                    input_tokens = chunk.input_tokens
-                if chunk.output_tokens is not None:
-                    output_tokens = chunk.output_tokens
-                if chunk.status_text:
-                    yield _sse(
-                        "status",
-                        {
-                            "request_id": request_id,
-                            "message": chunk.status_text,
-                        },
-                    )
-                if chunk.content_delta:
-                    full_text += chunk.content_delta
-                    yield _sse(
-                        "delta",
-                        {
-                            "request_id": request_id,
-                            "assistant_message_id": prepared["assistant_message_id"],
-                            "delta": chunk.content_delta,
-                        },
-                    )
-
-            if cancel_registry.is_cancelled(request_id):
-                self._finalize(
-                    request_id,
-                    status=LLMRequestStatus.CANCELLED,
-                    content=full_text,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    error_code="CANCELLED",
-                    error_message="用户取消",
-                )
-                yield _sse("cancelled", {"request_id": request_id})
-                return
-
-            if not full_text.strip():
-                raise AppError("LLM_EMPTY_RESPONSE", "模型返回空内容", status_code=502)
-
-            if output_tokens is None:
-                output_tokens = estimate_tokens(full_text)
-
-            self._finalize(
-                request_id,
-                status=LLMRequestStatus.SUCCEEDED,
-                content=full_text,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-            )
-            yield _sse(
-                "completed",
-                {
-                    "request_id": request_id,
-                    "assistant_message_id": prepared["assistant_message_id"],
-                    "content": full_text,
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens,
-                },
-            )
-        except AppError as error:
-            self._finalize(
-                request_id,
-                status=LLMRequestStatus.FAILED,
-                content=full_text,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                error_code=error.code,
-                error_message=error.message,
-            )
-            yield _sse(
-                "failed",
-                {
-                    "request_id": request_id,
-                    "error_code": error.code,
-                    "error_message": error.message,
-                },
-            )
-        except Exception as error:  # noqa: BLE001
-            self._finalize(
-                request_id,
-                status=LLMRequestStatus.FAILED,
-                content=full_text,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                error_code="LLM_UNEXPECTED_ERROR",
-                error_message=str(error),
-            )
-            yield _sse(
-                "failed",
-                {
-                    "request_id": request_id,
-                    "error_code": "LLM_UNEXPECTED_ERROR",
-                    "error_message": str(error),
-                },
-            )
-        finally:
-            cancel_registry.clear_cancel(request_id)
 
     @staticmethod
     def cancel(request_id: str) -> None:
@@ -448,54 +313,3 @@ class ChatStreamService:
                 return
         finally:
             db.close()
-
-    def _set_status(self, request_id: str, status: LLMRequestStatus) -> None:
-        request = self.db.get(LLMRequest, request_id)
-        if request:
-            request.status = status.value
-            self.db.commit()
-
-    def _finalize(
-        self,
-        request_id: str,
-        *,
-        status: LLMRequestStatus,
-        content: str,
-        input_tokens: int | None,
-        output_tokens: int | None,
-        error_code: str | None = None,
-        error_message: str | None = None,
-    ) -> None:
-        request = self.db.get(LLMRequest, request_id)
-        if not request:
-            return
-        request.status = status.value
-        request.input_tokens = input_tokens
-        request.output_tokens = output_tokens
-        request.error_code = error_code
-        request.error_message = error_message
-        request.completed_at = datetime.now(UTC)
-
-        assistant = self.db.get(ChatMessage, request.assistant_message_id) if request.assistant_message_id else None
-        if assistant:
-            assistant.content = content
-            assistant.provider = request.provider
-            if status == LLMRequestStatus.SUCCEEDED:
-                assistant.status = MessageStatus.ACTIVE.value
-            elif status == LLMRequestStatus.CANCELLED and not content.strip():
-                assistant.status = MessageStatus.DELETED.value
-            else:
-                assistant.status = MessageStatus.FAILED.value
-            revisions = self.messages.list_revisions(assistant.id)
-            if revisions:
-                revisions[0].content = content
-            else:
-                self.db.add(
-                    MessageRevision(
-                        id=str(uuid4()),
-                        message_id=assistant.id,
-                        revision_number=1,
-                        content=content,
-                    )
-                )
-        self.db.commit()

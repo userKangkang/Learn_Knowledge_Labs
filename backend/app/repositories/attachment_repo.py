@@ -39,6 +39,15 @@ class AttachmentRepository:
         )
         return list(self.db.scalars(stmt).all())
 
+    def list_by_session_ids(self, session_ids: list[str]) -> list[MessageAttachment]:
+        if not session_ids:
+            return []
+        stmt = select(MessageAttachment).where(
+            MessageAttachment.session_id.in_(session_ids),
+            MessageAttachment.deleted_at.is_(None),
+        )
+        return list(self.db.scalars(stmt).all())
+
     def add(self, attachment: MessageAttachment) -> MessageAttachment:
         self.db.add(attachment)
         self.db.flush()
@@ -46,4 +55,10 @@ class AttachmentRepository:
 
     def soft_delete(self, attachment: MessageAttachment) -> None:
         attachment.deleted_at = datetime.now(UTC)
+        self.db.flush()
+
+    def soft_delete_many(self, attachments: list[MessageAttachment]) -> None:
+        now = datetime.now(UTC)
+        for attachment in attachments:
+            attachment.deleted_at = now
         self.db.flush()

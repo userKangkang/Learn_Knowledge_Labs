@@ -1,9 +1,10 @@
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from app.services.llm_gateway import StreamChunk
+from app.services.llm_gateway import LLMGateway, StreamChunk
 
 
 def _graph_node_session(client: TestClient) -> tuple[str, str, str]:
@@ -155,6 +156,125 @@ def test_stream_web_search_uses_flash(client: TestClient, monkeypatch):
     messages = client.get(f"/api/v1/sessions/{session_id}/messages").json()
     assert messages[-1]["content"] == "联网后的答案"
     get_settings.cache_clear()
+
+
+def test_stream_web_search_can_route_to_kimi(client: TestClient, monkeypatch):
+    monkeypatch.setenv("MOONSHOT_API_KEY", "kimi-test-key")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    _, _, session_id = _graph_node_session(client)
+
+    def fake_stream(*_args, **kwargs):
+        assert kwargs.get("provider") == "kimi"
+        assert kwargs.get("web_search") is True
+        assert kwargs.get("model") == "kimi-k3"
+        yield StreamChunk(content_delta="Kimi 联网答案")
+
+    with patch("app.services.chat_stream_service.LLMGateway.stream", side_effect=fake_stream):
+        with client.stream(
+            "POST",
+            f"/api/v1/sessions/{session_id}/messages/stream",
+            json={"content": "最近有哪些顶会论文？", "web_search": True, "text_model": "kimi-k3"},
+        ) as response:
+            assert response.status_code == 200
+            body = "".join(response.iter_text())
+            assert '"provider": "kimi"' in body
+            assert '"web_search": true' in body
+            assert "Kimi 联网答案" in body
+    get_settings.cache_clear()
+
+
+def test_kimi_gateway_executes_official_formula_search(monkeypatch):
+    settings = SimpleNamespace(
+        moonshot_api_key="kimi-test-key",
+        moonshot_base_url="https://api.moonshot.cn/v1",
+        llm_reasoning_effort="high",
+    )
+    gateway = LLMGateway(settings)  # type: ignore[arg-type]
+    calls: list[tuple[str, str, dict | None]] = []
+
+    class FakeResponse:
+        def __init__(self, payload: dict):
+            self.status_code = 200
+            self._payload = payload
+            self.text = ""
+
+        def json(self):
+            return self._payload
+
+    class FakeClient:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def get(self, url, *, headers):
+            calls.append(("GET", url, None))
+            return FakeResponse({"tools": [{"type": "function", "function": {"name": "web_search"}}]})
+
+        def post(self, url, *, headers, json):
+            calls.append(("POST", url, json))
+            if url.endswith("/chat/completions"):
+                return FakeResponse(
+                    {
+                        "choices": [
+                            {
+                                "message": {
+                                    "role": "assistant",
+                                    "content": None,
+                                    "reasoning_content": "需要搜索",
+                                    "tool_calls": [
+                                        {
+                                            "id": "web_search:0",
+                                            "type": "function",
+                                            "function": {"name": "web_search", "arguments": '{"query":"相关论文"}'},
+                                        }
+                                    ],
+                                },
+                                "finish_reason": "tool_calls",
+                            }
+                        ]
+                    }
+                )
+            return FakeResponse({"context": {"encrypted_output": "encrypted-search-result"}})
+
+    final_request: dict = {}
+
+    def fake_final_stream(url, body, *, headers, retry_attempt=0):
+        final_request.update({"url": url, "body": body, "headers": headers})
+        yield StreamChunk(content_delta="最终联网回答")
+
+    monkeypatch.setattr("app.services.llm_gateway.httpx.Client", FakeClient)
+    monkeypatch.setattr(gateway, "_iter_chat_sse", fake_final_stream)
+    chunks = list(
+        gateway.stream(
+            provider="kimi",
+            model="kimi-k3",
+            system_prompt="system",
+            messages=[{"role": "user", "content": "搜索相关论文"}],
+            web_search=True,
+        )
+    )
+
+    assert any(chunk.status_text == "Kimi 正在执行联网搜索…" for chunk in chunks)
+    assert chunks[-1].content_delta == "最终联网回答"
+    assert calls[0][0] == "GET" and calls[0][1].endswith("/formulas/moonshot/web-search:latest/tools")
+    planning = next(body for method, url, body in calls if method == "POST" and url.endswith("/chat/completions"))
+    assert planning["tool_choice"] == "required"
+    fiber = next(body for method, url, body in calls if method == "POST" and url.endswith("/fibers"))
+    assert fiber == {"name": "web_search", "arguments": '{"query":"相关论文"}'}
+    assert final_request["body"]["tool_choice"] == "none"
+    assert final_request["body"]["stream"] is True
+    assert final_request["body"]["messages"][-1] == {
+        "role": "tool",
+        "tool_call_id": "web_search:0",
+        "content": "encrypted-search-result",
+    }
 
 
 def test_text_model_kimi_without_files(client: TestClient, monkeypatch):

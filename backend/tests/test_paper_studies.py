@@ -7,6 +7,17 @@ def _graph(client):
     return client.post("/api/v1/graphs", json={"title": "Paper graph"}).json()["id"]
 
 
+def test_paper_study_title_can_be_renamed(client):
+    graph_id = _graph(client)
+    study = client.post(f"/api/v1/graphs/{graph_id}/paper-studies", json={"title": "未命名论文理解"}).json()
+
+    renamed = client.patch(f"/api/v1/paper-studies/{study['id']}", json={"title": "AReaL 论文理解"})
+
+    assert renamed.status_code == 200
+    assert renamed.json()["title"] == "AReaL 论文理解"
+    assert client.get(f"/api/v1/paper-studies/{study['id']}").json()["title"] == "AReaL 论文理解"
+
+
 def test_paper_understanding_requires_user_confirmed_overview(client, monkeypatch):
     graph_id = _graph(client)
     study = client.post(f"/api/v1/graphs/{graph_id}/paper-studies", json={"title": "RollArt"}).json()

@@ -213,11 +213,12 @@ function GraphCanvasInner({ graphId }: Props) {
           position_x = current.position_x + CHILD_OFFSET.x + childCount * 28;
           position_y = current.position_y + CHILD_OFFSET.y;
         } else {
-          parentEdge =
-            graphEdges.find((e) => e.target_node_id === current.id) ?? null;
-          const siblingIndex = parentEdge
-            ? graphEdges.filter((e) => e.source_node_id === parentEdge!.source_node_id).length
-            : 0;
+          parentEdge = graphEdges.find((e) => e.target_node_id === current.id) ?? null;
+          let siblingIndex = 0;
+          if (parentEdge) {
+            const parentId = parentEdge.source_node_id;
+            siblingIndex = graphEdges.filter((e) => e.source_node_id === parentId).length;
+          }
           position_x = current.position_x + SIBLING_OFFSET.x;
           position_y = current.position_y + SIBLING_OFFSET.y + siblingIndex * 8;
         }

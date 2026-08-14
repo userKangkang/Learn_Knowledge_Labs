@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     llm_thinking_enabled: bool = True
     llm_reasoning_effort: str = "high"
     default_text_provider: str = "deepseek"  # deepseek | kimi
+    related_paper_search_max_context_tokens: int = 32000
     upload_dir: str = str(DEFAULT_UPLOAD_DIR)
     max_upload_bytes: int = 20 * 1024 * 1024
 

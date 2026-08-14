@@ -11,6 +11,7 @@ from app.api import (
     llm,
     messages,
     nodes,
+    problem_map,
     sessions,
     summaries,
     temp_chats,
@@ -44,3 +45,4 @@ app.include_router(attachments.router, prefix=api)
 app.include_router(llm.router, prefix=api)
 app.include_router(temp_chats.router, prefix=api)
 app.include_router(paper_studies.router, prefix=api)
+app.include_router(problem_map.router, prefix=api)

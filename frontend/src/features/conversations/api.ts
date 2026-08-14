@@ -1,13 +1,8 @@
 import { ApiError, apiRequest } from "../../shared/api/client";
 import { consumeSse, type SseHandler } from "../../shared/api/sse";
+export { cancelLlmRequest, getLlmSettings } from "../../shared/api/llm";
 import type { ConversationBranch, TempTurn } from "../../entities/branch/types";
-import type { LLMSettings } from "../../entities/llm/types";
-import type {
-  ChatMessage,
-  MessageAttachment,
-  MessageRevision,
-  MessageRole,
-} from "../../entities/message/types";
+import type { ChatMessage, MessageAttachment } from "../../entities/message/types";
 import type { ConversationSession } from "../../entities/session/types";
 
 export function listSessions(nodeId: string) {
@@ -36,13 +31,6 @@ export function listMessages(sessionId: string) {
   return apiRequest<ChatMessage[]>(`/api/v1/sessions/${sessionId}/messages`);
 }
 
-export function createMessage(sessionId: string, role: MessageRole, content: string) {
-  return apiRequest<ChatMessage>(`/api/v1/sessions/${sessionId}/messages`, {
-    method: "POST",
-    body: JSON.stringify({ role, content }),
-  });
-}
-
 export function updateMessage(messageId: string, content: string) {
   return apiRequest<ChatMessage>(`/api/v1/messages/${messageId}`, {
     method: "PATCH",
@@ -52,14 +40,6 @@ export function updateMessage(messageId: string, content: string) {
 
 export function deleteMessage(messageId: string) {
   return apiRequest<void>(`/api/v1/messages/${messageId}`, { method: "DELETE" });
-}
-
-export function listRevisions(messageId: string) {
-  return apiRequest<MessageRevision[]>(`/api/v1/messages/${messageId}/revisions`);
-}
-
-export function getLlmSettings() {
-  return apiRequest<LLMSettings>("/api/v1/llm/settings");
 }
 
 export async function uploadAttachment(sessionId: string, file: File) {
@@ -91,7 +71,7 @@ export async function streamMessage(
     content: string;
     attachment_ids?: string[];
     web_search?: boolean;
-    text_model?: "deepseek-v4-flash" | "kimi-k3";
+    text_model?: string;
   },
   onEvent: SseHandler,
   signal?: AbortSignal,
@@ -109,7 +89,7 @@ export async function retryStreamMessage(
   sessionId: string,
   body: {
     web_search?: boolean;
-    text_model?: "deepseek-v4-flash" | "kimi-k3";
+    text_model?: string;
   },
   onEvent: SseHandler,
   signal?: AbortSignal,
@@ -121,10 +101,6 @@ export async function retryStreamMessage(
     signal,
   });
   await consumeSse(response, onEvent, signal);
-}
-
-export function cancelLlmRequest(requestId: string) {
-  return apiRequest<void>(`/api/v1/llm-requests/${requestId}/cancel`, { method: "POST" });
 }
 
 export function listBranches(sessionId: string, anchorMessageId?: string) {
@@ -144,10 +120,6 @@ export function createBranch(
   });
 }
 
-export function deleteBranch(branchId: string) {
-  return apiRequest<void>(`/api/v1/branches/${branchId}`, { method: "DELETE" });
-}
-
 export async function streamEphemeralTempChat(
   sessionId: string,
   body: {
@@ -155,7 +127,7 @@ export async function streamEphemeralTempChat(
     content: string;
     prior_turns?: TempTurn[];
     web_search?: boolean;
-    text_model?: "deepseek-v4-flash" | "kimi-k3";
+    text_model?: string;
   },
   onEvent: SseHandler,
   signal?: AbortSignal,
@@ -174,7 +146,7 @@ export async function streamBranchMessage(
   body: {
     content: string;
     web_search?: boolean;
-    text_model?: "deepseek-v4-flash" | "kimi-k3";
+    text_model?: string;
   },
   onEvent: SseHandler,
   signal?: AbortSignal,

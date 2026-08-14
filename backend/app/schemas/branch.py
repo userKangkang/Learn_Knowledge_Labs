@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Literal
 
 from app.schemas.common import APIModel, MessageRole
-from app.schemas.llm import TextModelChoice
 from app.schemas.message import MessageRead
 
 
@@ -18,7 +17,7 @@ class EphemeralStreamCreate(APIModel):
     content: str
     prior_turns: list[TempTurn] = []
     web_search: bool = False
-    text_model: TextModelChoice | None = None
+    text_model: str | None = None
 
 
 class BranchCreate(APIModel):
@@ -32,7 +31,7 @@ class BranchCreate(APIModel):
 class BranchStreamCreate(APIModel):
     content: str
     web_search: bool = False
-    text_model: TextModelChoice | None = None
+    text_model: str | None = None
 
 
 class BranchRead(APIModel):

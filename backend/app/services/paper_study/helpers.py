@@ -5,11 +5,6 @@ import json
 from app.errors import AppError
 
 
-def paper_sse(event: str, data: dict) -> str:
-    """Frame one Server-Sent Events message."""
-    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
-
-
 def clean_json(text: str) -> dict:
     """Parse strict model JSON, tolerating fenced code blocks or stray prose."""
     raw = text.strip()

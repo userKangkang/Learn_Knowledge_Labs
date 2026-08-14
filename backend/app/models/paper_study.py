@@ -32,7 +32,6 @@ class PaperStudyDocument(Base):
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    evidence_brief: Mapped[str | None] = mapped_column(Text, nullable=True)
     kimi_detailed_analysis: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="UPLOADED")
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -97,6 +96,7 @@ class PaperProblemCard(Base):
 
     study = relationship("PaperStudy", back_populates="problem_cards")
     concept_map = relationship("PaperConceptMap", back_populates="problem_card", uselist=False, cascade="all, delete-orphan")
+    problem_links = relationship("ProblemCardLink", back_populates="card", cascade="all, delete-orphan")
 
 
 class PaperConceptMap(Base):

@@ -13,15 +13,18 @@ import type { RunFn, SaveCardFn } from "./components/shared";
 type Props = {
   open: boolean;
   graphId: string;
+  initialStudyId?: string;
   onClose: () => void;
 };
 
-export function PaperStudyDialog({ open, graphId, onClose }: Props) {
+export function PaperStudyDialog({ open, graphId, initialStudyId, onClose }: Props) {
   const queryClient = useQueryClient();
   const [studies, setStudies] = useState<PaperStudy[]>([]);
   const [study, setStudy] = useState<PaperStudy | null>(null);
   const [tab, setTab] = useState(1);
   const [title, setTitle] = useState("");
+  const [renameTitle, setRenameTitle] = useState("");
+  const [renaming, setRenaming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [selectedCardId, setSelectedCardId] = useState("");
@@ -44,11 +47,12 @@ export function PaperStudyDialog({ open, graphId, onClose }: Props) {
       .listStudies(graphId)
       .then((all) => {
         setStudies(all);
-        setStudy(all[0] ?? null);
+        const target = initialStudyId ? all.find((item) => item.id === initialStudyId) ?? null : null;
+        setStudy(target ?? all[0] ?? null);
       })
       .catch((e) => setError(e.message));
     void listNodes(graphId).then(setNodes);
-  }, [open, graphId]);
+  }, [open, graphId, initialStudyId]);
 
   useEffect(() => {
     if (!selectedCardId) {
@@ -87,6 +91,15 @@ export function PaperStudyDialog({ open, graphId, onClose }: Props) {
       setStudies((all) => [next, ...all]);
       setTab(1);
     });
+  const rename = () => {
+    if (!study || !renameTitle.trim()) return;
+    void run(async () => {
+      const next = await api.updateStudy(study.id, renameTitle.trim());
+      setStudy(next);
+      setStudies((all) => all.map((item) => (item.id === next.id ? next : item)));
+      setRenaming(false);
+    });
+  };
   const saveCard: SaveCardFn = (card, patch) =>
     run(async () => {
       await api.updateCard(card.id, patch);
@@ -114,6 +127,7 @@ export function PaperStudyDialog({ open, graphId, onClose }: Props) {
               key={item.id}
               onClick={() => {
                 setStudy(item);
+                setRenaming(false);
                 setSelectedCardId("");
                 setTab(1);
               }}
@@ -121,6 +135,38 @@ export function PaperStudyDialog({ open, graphId, onClose }: Props) {
               {item.title}
             </button>
           ))}
+          {study && (
+            renaming ? (
+              <div className="paper-study-rename">
+                <input
+                  autoFocus
+                  value={renameTitle}
+                  maxLength={255}
+                  onChange={(e) => setRenameTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") rename();
+                    if (e.key === "Escape") setRenaming(false);
+                  }}
+                  placeholder="论文理解标题"
+                />
+                <div>
+                  <button className="btn" disabled={busy || !renameTitle.trim()} onClick={rename}>保存</button>
+                  <button className="btn btn--ghost" disabled={busy} onClick={() => setRenaming(false)}>取消</button>
+                </div>
+              </div>
+            ) : (
+              <button
+                className="btn btn--ghost paper-study-rename-trigger"
+                disabled={busy}
+                onClick={() => {
+                  setRenameTitle(study.title);
+                  setRenaming(true);
+                }}
+              >
+                修改当前标题
+              </button>
+            )
+          )}
           <div className="paper-study-create">
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="论文标题" />
             <button className="btn" disabled={busy} onClick={create}>
@@ -138,6 +184,7 @@ export function PaperStudyDialog({ open, graphId, onClose }: Props) {
                   const all = await api.listStudies(graphId);
                   setStudies(all);
                   setStudy(all[0] ?? null);
+                  setRenaming(false);
                 })
               }
             >

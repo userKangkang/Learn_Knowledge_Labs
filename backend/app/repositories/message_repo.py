@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.message import ChatMessage, MessageRevision
+from app.schemas.common import MessageStatus
 
 
 class MessageRepository:
@@ -14,7 +15,7 @@ class MessageRepository:
             select(ChatMessage)
             .where(
                 ChatMessage.session_id == session_id,
-                ChatMessage.status != "DELETED",
+                ChatMessage.status != MessageStatus.DELETED.value,
                 ChatMessage.branch_id.is_(None),
             )
             .order_by(ChatMessage.created_at.asc())
@@ -26,7 +27,7 @@ class MessageRepository:
             select(ChatMessage)
             .where(
                 ChatMessage.branch_id == branch_id,
-                ChatMessage.status != "DELETED",
+                ChatMessage.status != MessageStatus.DELETED.value,
             )
             .order_by(ChatMessage.created_at.asc())
         )
@@ -46,7 +47,7 @@ class MessageRepository:
 
     def get_visible(self, message_id: str) -> ChatMessage | None:
         message = self.get(message_id)
-        if not message or message.status == "DELETED":
+        if not message or message.status == MessageStatus.DELETED.value:
             return None
         return message
 
@@ -73,8 +74,8 @@ class MessageRepository:
             return
         stmt = select(ChatMessage).where(
             ChatMessage.session_id.in_(session_ids),
-            ChatMessage.status != "DELETED",
+            ChatMessage.status != MessageStatus.DELETED.value,
         )
         for message in self.db.scalars(stmt).all():
-            message.status = "DELETED"
+            message.status = MessageStatus.DELETED.value
         self.db.flush()

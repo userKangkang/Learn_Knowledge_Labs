@@ -9,5 +9,19 @@
     "assistant_id": "e5a33b1c-25ef-43d6-b47e-ea410d9072c6",
     "user_id": "5d68c112-16d9-485c-bc88-57af65ea33f7"
   },
-  "generated": true
+  "generated": true,
+  "problem_map_demo": {
+    "graph_id": "697790a2-82e5-4fda-8ff8-bde642f95630",
+    "study_ids": {
+      "RollArt：长尾环境下的分布式训练": "cf5bd4bc-0684-4520-af27-98d18bb54be7",
+      "稀疏奖励下的策略梯度稳定训练": "b485ae3f-7233-4f55-90ba-deb6b914d12e",
+      "离线强化学习中的分布偏移": "487ecafd-96af-4c3a-be02-a5a847c4c648"
+    },
+    "problem_ids": {
+      "root": "a4d230b2-3b0a-472c-a29d-e17755c9f0cd",
+      "tail": "c17d2e26-f9f8-4f10-beb0-0ac2a0eeaf31",
+      "sparse": "8edf11ec-b13c-4c16-a038-df42e1d82b37",
+      "offline": "edbb0835-dfb0-464e-8260-68fc1b079532"
+    }
+  }
 }

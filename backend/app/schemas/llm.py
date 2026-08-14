@@ -1,25 +1,21 @@
 from datetime import datetime
-from typing import Literal
 
 from app.schemas.common import APIModel, LLMRequestStatus
-
-TextModelChoice = Literal["deepseek-v4-flash", "kimi-k3"]
 
 
 class StreamMessageCreate(APIModel):
     content: str
     attachment_ids: list[str] = []
     web_search: bool = False
-    text_model: TextModelChoice | None = None
+    text_model: str | None = None
     model: str | None = None  # legacy override
-    temperature: float | None = None
 
 
 class RetryStreamCreate(APIModel):
     """Retry the last user turn in a session (no new user message)."""
 
     web_search: bool = False
-    text_model: TextModelChoice | None = None
+    text_model: str | None = None
     model: str | None = None
 
 
