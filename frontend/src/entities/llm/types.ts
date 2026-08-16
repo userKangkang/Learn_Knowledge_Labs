@@ -3,10 +3,13 @@ export interface LLMSettings {
   model: string;
   search_model: string;
   kimi_model: string;
+  openai_model: string;
   base_url: string;
   moonshot_base_url: string;
+  openai_base_url: string;
   api_key_configured: boolean;
   kimi_api_key_configured: boolean;
+  openai_api_key_configured: boolean;
   temperature: number;
   thinking_enabled: boolean;
   reasoning_effort: string;

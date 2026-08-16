@@ -3,7 +3,7 @@ import { Position, type Node } from "@xyflow/react";
 /** Handle ids must match KnowledgeNode (ConnectionMode.Loose dual-role handles). */
 export type NodeHandleId = "top" | "right" | "bottom" | "left";
 
-const DEFAULT_NODE_SIZE = { width: 200, height: 120 };
+const DEFAULT_NODE_SIZE = { width: 340, height: 210 };
 
 function centerOf(node: Node): { x: number; y: number } {
   const width = node.measured?.width ?? node.width ?? DEFAULT_NODE_SIZE.width;

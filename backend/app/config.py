@@ -32,13 +32,30 @@ class Settings(BaseSettings):
     moonshot_base_url: str = "https://api.moonshot.cn/v1"
     kimi_model: str = "kimi-k3"
 
+    openai_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("CHATGPT_API_KEY", "OPENAI_API_KEY", "openai_api_key"),
+    )
+    openai_base_url: str = Field(
+        default="https://zctotoken.com/v1",
+        validation_alias=AliasChoices("CHATGPT_BASE_URL", "OPENAI_BASE_URL", "openai_base_url"),
+    )
+    openai_model: str = Field(
+        default="gpt-5.6-terra",
+        validation_alias=AliasChoices("CHATGPT_MODEL", "OPENAI_MODEL", "openai_model"),
+    )
+
     llm_temperature: float = 0.2
     llm_thinking_enabled: bool = True
     llm_reasoning_effort: str = "high"
-    default_text_provider: str = "deepseek"  # deepseek | kimi
+    default_text_provider: str = "deepseek"  # deepseek | kimi | openai
     related_paper_search_max_context_tokens: int = 32000
     upload_dir: str = str(DEFAULT_UPLOAD_DIR)
     max_upload_bytes: int = 20 * 1024 * 1024
+    # PDF slides are rendered into visual inputs for Kimi in file-digest mode.
+    pdf_visual_max_pages: int = 24
+    pdf_visual_max_edge: int = 1600
+    pdf_visual_jpeg_quality: int = 72
 
 
 @lru_cache

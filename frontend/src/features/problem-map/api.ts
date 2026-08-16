@@ -93,9 +93,10 @@ export function savePositions(
   });
 }
 
-export function suggestProblemMap(graphId: string) {
+export function suggestProblemMap(graphId: string, textModel: string) {
   return apiRequest<ProblemMapSuggestResponse>(`/api/v1/graphs/${graphId}/problem-map/suggest`, {
     method: "POST",
+    body: JSON.stringify({ text_model: textModel }),
   });
 }
 

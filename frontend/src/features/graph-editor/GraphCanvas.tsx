@@ -34,8 +34,8 @@ const nodeTypes = { knowledge: KnowledgeNodeView };
 const edgeTypes = { typed: TypedEdge };
 
 const DEFAULT_STRUCTURAL_EDGE: EdgeType = "PART_OF";
-const CHILD_OFFSET = { x: 36, y: 150 };
-const SIBLING_OFFSET = { x: 230, y: 0 };
+const CHILD_OFFSET = { x: 36, y: 250 };
+const SIBLING_OFFSET = { x: 400, y: 0 };
 
 function toFlowNodes(nodes: KnowledgeNode[], selectedNodeId: string | null = null): KnowledgeFlowNode[] {
   return nodes.map((node) => ({

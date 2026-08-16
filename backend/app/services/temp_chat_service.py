@@ -22,7 +22,7 @@ from app.schemas.branch import BranchCreate, BranchRead, BranchStreamCreate, Eph
 from app.schemas.common import LLMRequestStatus, MessageRole, MessageStatus
 from app.schemas.message import MessageRead
 from app.services.attachment_service import to_attachment_read
-from app.services.chat_stream_service import _resolve_route
+from app.services.model_routing import resolve_text_route
 from app.services.context_builder import estimate_tokens
 from app.services.history_for_llm import build_transcript_messages
 from app.services.llm_gateway import LLMGateway
@@ -203,7 +203,7 @@ class TempChatService:
         if not content:
             raise AppError("MESSAGE_EMPTY", "消息内容不能为空", status_code=400)
 
-        provider, model, web_search = _resolve_route(
+        provider, model, web_search = resolve_text_route(
             text_model=payload.text_model,
             model=None,
             web_search=bool(payload.web_search),
@@ -251,7 +251,7 @@ class TempChatService:
         if not content:
             raise AppError("MESSAGE_EMPTY", "消息内容不能为空", status_code=400)
 
-        provider, model, web_search = _resolve_route(
+        provider, model, web_search = resolve_text_route(
             text_model=payload.text_model,
             model=None,
             web_search=bool(payload.web_search),

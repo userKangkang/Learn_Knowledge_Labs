@@ -6,12 +6,13 @@ import { overviewFields, type RefreshFn, type RunFn } from "./shared";
 
 type Props = {
   study: PaperStudy;
+  textModel: string;
   busy: boolean;
   run: RunFn;
   refresh: RefreshFn;
 };
 
-export function PaperOverviewStage({ study, busy, run, refresh }: Props) {
+export function PaperOverviewStage({ study, textModel, busy, run, refresh }: Props) {
   const [overview, setOverview] = useState(study.overview);
   const [question, setQuestion] = useState("");
   const [sourcePreview, setSourcePreview] = useState<api.PaperSourceTextPreview | null>(null);
@@ -39,7 +40,7 @@ export function PaperOverviewStage({ study, busy, run, refresh }: Props) {
   const start = () =>
     run(async () => {
       setLiveAssistant("");
-      await api.streamConversationStart(study.id, "OVERVIEW", handleStreamEvent);
+      await api.streamConversationStart(study.id, "OVERVIEW", textModel, handleStreamEvent);
       await refresh();
       setLiveAssistant("");
     });
@@ -51,7 +52,7 @@ export function PaperOverviewStage({ study, busy, run, refresh }: Props) {
       setLiveUser(content);
       setLiveAssistant("");
       try {
-        await api.streamConversationMessage(study.id, "OVERVIEW", content, handleStreamEvent);
+        await api.streamConversationMessage(study.id, "OVERVIEW", content, textModel, handleStreamEvent);
         await refresh();
       } finally {
         setLiveUser("");
@@ -92,7 +93,7 @@ export function PaperOverviewStage({ study, busy, run, refresh }: Props) {
                     : "未从 PDF 提取到文本"}
                 </span>
               </div>
-              <p className="paper-document__note">DeepSeek 默认直接携带 PDF 原文；请先预览核对。Kimi 不是事实层的必经环节。</p>
+              <p className="paper-document__note">所选文本模型会直接携带 PDF 原文；请先预览核对。Kimi 详细解读不是事实层的必经环节。</p>
               <div className="paper-document__actions">
                 {study.document.source_text_char_count > 0 && (
                   <button
@@ -126,8 +127,8 @@ export function PaperOverviewStage({ study, busy, run, refresh }: Props) {
           ))}
       </div>
       {study.document && (study.document.source_text_char_count > 0 || study.document.kimi_detailed_analysis) && !messages.length && !liveAssistant && (
-        <button className="btn" disabled={busy} onClick={start}>
-          让 DeepSeek 直接基于论文原文开始介绍
+        <button className="btn" disabled={busy || !textModel} onClick={start}>
+          让所选模型直接基于论文原文开始介绍
         </button>
       )}
       {(messages.length > 0 || liveAssistant) && (

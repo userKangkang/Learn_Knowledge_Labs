@@ -5,6 +5,8 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from app.services.llm_gateway import LLMGateway, StreamChunk
+from app.services.history_for_llm import build_file_digest_user_content
+from app.services.model_routing import resolve_text_route
 
 
 def _graph_node_session(client: TestClient) -> tuple[str, str, str]:
@@ -71,6 +73,30 @@ def test_upload_accepts_image(client: TestClient, tmp_path: Path, monkeypatch):
     assert response.status_code == 201, response.text
     assert response.json()["kind"] == "image"
     get_settings.cache_clear()
+
+
+def test_pdf_digest_includes_rendered_page_visual(tmp_path: Path):
+    pdf_path = tmp_path / "slides.pdf"
+    pdf_path.write_bytes(_pdf_with_text("A slide with a chart"))
+    attachment = SimpleNamespace(
+        kind="pdf",
+        filename="slides.pdf",
+        content_type="application/pdf",
+        storage_path=str(pdf_path),
+        extracted_text="A slide with a chart",
+    )
+    settings = SimpleNamespace(pdf_visual_max_pages=4, pdf_visual_max_edge=800, pdf_visual_jpeg_quality=70)
+
+    content, has_visual_parts = build_file_digest_user_content(
+        user_text="请解析课件",
+        attachments=[attachment],
+        settings=settings,
+    )
+
+    assert has_visual_parts is True
+    assert isinstance(content, list)
+    assert any(part.get("type") == "image_url" for part in content)
+    assert any("A slide with a chart" in part.get("text", "") for part in content if part.get("type") == "text")
 
 
 def test_upload_pdf_and_stream(client: TestClient, tmp_path: Path, monkeypatch):
@@ -183,6 +209,81 @@ def test_stream_web_search_can_route_to_kimi(client: TestClient, monkeypatch):
             assert '"web_search": true' in body
             assert "Kimi 联网答案" in body
     get_settings.cache_clear()
+
+
+def test_openai_model_routes_chat_to_configured_provider(client: TestClient, monkeypatch):
+    monkeypatch.setenv("CHATGPT_API_KEY", "openai-test-key")
+    monkeypatch.setenv("CHATGPT_MODEL", "gpt-5.6-terra")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    _, _, session_id = _graph_node_session(client)
+
+    def fake_stream(*_args, **kwargs):
+        assert kwargs.get("provider") == "openai"
+        assert kwargs.get("model") == "gpt-5.6-terra"
+        assert kwargs.get("web_search") is False
+        yield StreamChunk(content_delta="OpenAI 回答")
+
+    with patch("app.services.chat_stream_service.LLMGateway.stream", side_effect=fake_stream):
+        with client.stream(
+            "POST",
+            f"/api/v1/sessions/{session_id}/messages/stream",
+            json={"content": "测试 OpenAI", "text_model": "gpt-5.6-terra"},
+        ) as response:
+            body = "".join(response.iter_text())
+            assert response.status_code == 200
+            assert '"provider": "openai"' in body
+            assert "OpenAI 回答" in body
+    get_settings.cache_clear()
+
+
+def test_openai_gateway_uses_chat_and_responses_endpoints(monkeypatch):
+    settings = SimpleNamespace(
+        openai_api_key="openai-test-key",
+        openai_base_url="https://example.test/v1",
+        llm_reasoning_effort="high",
+    )
+    gateway = LLMGateway(settings)  # type: ignore[arg-type]
+    calls: list[tuple[str, str, dict]] = []
+
+    def fake_chat(url, body, *, headers, retry_attempt=0):
+        calls.append(("chat", url, body))
+        assert headers["Authorization"] == "Bearer openai-test-key"
+        yield StreamChunk(content_delta="chat")
+
+    def fake_responses(url, body, *, headers, retry_attempt=0, provider_name="DeepSeek"):
+        calls.append((provider_name, url, body))
+        assert headers["Authorization"] == "Bearer openai-test-key"
+        yield StreamChunk(content_delta="search")
+
+    monkeypatch.setattr(gateway, "_iter_chat_sse", fake_chat)
+    monkeypatch.setattr(gateway, "_iter_responses_sse", fake_responses)
+
+    assert "".join(chunk.content_delta for chunk in gateway.stream(
+        provider="openai", model="gpt-5.6-terra", system_prompt="system", messages=[{"role": "user", "content": "hello"}]
+    )) == "chat"
+    assert "".join(chunk.content_delta for chunk in gateway.stream(
+        provider="openai", model="gpt-5.6-terra", system_prompt="system", messages=[{"role": "user", "content": "search"}], web_search=True
+    )) == "search"
+    assert calls[0][1] == "https://example.test/v1/chat/completions"
+    assert calls[1][1] == "https://example.test/v1/responses"
+    assert calls[1][2]["tools"] == [{"type": "web_search"}]
+
+
+def test_resolve_text_route_accepts_configured_openai_model():
+    settings = SimpleNamespace(
+        default_text_provider="openai",
+        kimi_model="kimi-k3",
+        openai_model="gpt-5.6-terra",
+        deepseek_model="deepseek-v4-flash",
+        deepseek_search_model="deepseek-v4-flash",
+    )
+    assert resolve_text_route(text_model=None, model=None, web_search=False, settings=settings) == (
+        "openai",
+        "gpt-5.6-terra",
+        False,
+    )
 
 
 def test_kimi_gateway_executes_official_formula_search(monkeypatch):

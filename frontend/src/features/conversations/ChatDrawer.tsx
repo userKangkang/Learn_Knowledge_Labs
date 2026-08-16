@@ -84,8 +84,11 @@ export function ChatDrawer({ graphId }: Props) {
   }, [activeNodeId]);
 
   useEffect(() => {
-    const model = llmSettingsQuery.data?.model;
-    if (model && !textModel) setTextModel(model);
+    const settings = llmSettingsQuery.data;
+    if (!settings || textModel) return;
+    if (settings.default_text_provider === "openai") setTextModel(settings.openai_model);
+    else if (settings.default_text_provider === "kimi") setTextModel(settings.kimi_model);
+    else setTextModel(settings.model);
   }, [llmSettingsQuery.data, textModel]);
 
   const messagesQuery = useQuery({
@@ -438,7 +441,7 @@ export function ChatDrawer({ graphId }: Props) {
         {pendingFiles.length > 0 && (
           <>
             <p className="composer-tip">
-              本轮将用 Kimi 把附件转成<strong>尽可能详细的文字摘要</strong>。
+              本轮将用 Kimi 把附件转成<strong>尽可能详细的文字摘要</strong>；PDF 还会同时发送页面视觉图，供模型识别图表、公式和截图。
               请把指令写短（如「解析这篇」「摘要图中公式」），把本轮主要当作文件解析，而不是同时追问很多开放问题——方便之后切换 DeepSeek。
             </p>
             <ul className="chat-attachments">
@@ -491,6 +494,7 @@ export function ChatDrawer({ graphId }: Props) {
                 <>
                   <option value={llmSettingsQuery.data.model}>DeepSeek</option>
                   <option value={llmSettingsQuery.data.kimi_model}>Kimi</option>
+                  <option value={llmSettingsQuery.data.openai_model}>OpenAI · {llmSettingsQuery.data.openai_model}</option>
                 </>
               )}
             </select>
@@ -507,7 +511,7 @@ export function ChatDrawer({ graphId }: Props) {
               onChange={(e) => setWebSearch(e.target.checked)}
             />
             联网
-            <span className="muted">（DeepSeek / Kimi）</span>
+            <span className="muted">（DeepSeek / Kimi / OpenAI）</span>
           </label>
           <input
             ref={fileInputRef}

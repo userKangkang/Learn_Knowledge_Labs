@@ -23,6 +23,7 @@ from app.schemas.paper_study import (
     PaperStudyRead,
 )
 from app.services.llm_gateway import LLMGateway
+from app.services.model_routing import resolve_text_route
 
 
 class PaperStudyDeps:
@@ -111,6 +112,14 @@ class PaperStudyServiceBase:
         if not content.strip():
             raise AppError("LLM_EMPTY", "模型没有返回内容", status_code=502)
         return content
+
+    def _text_route(self, text_model: str | None = None) -> tuple[str, str]:
+        provider, model, _ = resolve_text_route(
+            text_model=text_model,
+            web_search=False,
+            settings=self.settings,
+        )
+        return provider, model
 
     def _require_paper_material(self, study: PaperStudy) -> PaperStudyDocument:
         document = self.repo.get_document(study.id)

@@ -148,6 +148,10 @@ class ProblemMapSuggestResponse(APIModel):
     note: str = ""
 
 
+class ProblemMapSuggestRequest(APIModel):
+    text_model: str | None = None
+
+
 class ProblemMapApplyProblem(APIModel):
     key: str
     title: str

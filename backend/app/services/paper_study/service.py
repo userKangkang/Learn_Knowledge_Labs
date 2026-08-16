@@ -49,14 +49,18 @@ class PaperStudyService:
         return self._documents.analyze_document(study_id)
 
     # --- conversations ---
-    def start_conversation(self, study_id: str, stage: str):
-        return self._conversations.start_conversation(study_id, stage)
+    def start_conversation(self, study_id: str, stage: str, text_model: str | None = None):
+        return self._conversations.start_conversation(study_id, stage, text_model)
 
     def send_conversation_message(self, study_id: str, payload):
         return self._conversations.send_conversation_message(study_id, payload)
 
-    def stream_conversation(self, study_id: str, *, stage: str, user_content: str | None = None):
-        return self._conversations.stream_conversation(study_id, stage=stage, user_content=user_content)
+    def stream_conversation(
+        self, study_id: str, *, stage: str, user_content: str | None = None, text_model: str | None = None
+    ):
+        return self._conversations.stream_conversation(
+            study_id, stage=stage, user_content=user_content, text_model=text_model
+        )
 
     def update_overview(self, study_id: str, payload):
         return self._conversations.update_overview(study_id, payload)
@@ -75,11 +79,11 @@ class PaperStudyService:
     def get_concept_map(self, card_id: str):
         return self._maps.get_concept_map(card_id)
 
-    def generate_concept_map(self, card_id: str):
-        return self._maps.generate_concept_map(card_id)
+    def generate_concept_map(self, card_id: str, text_model: str | None = None):
+        return self._maps.generate_concept_map(card_id, text_model)
 
-    def review_concept_candidates(self, card_id: str):
-        return self._maps.review_concept_candidates(card_id)
+    def review_concept_candidates(self, card_id: str, text_model: str | None = None):
+        return self._maps.review_concept_candidates(card_id, text_model)
 
     def finalize_concept_map(self, card_id: str, payload):
         return self._maps.finalize_concept_map(card_id, payload)

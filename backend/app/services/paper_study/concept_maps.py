@@ -77,13 +77,14 @@ class PaperConceptMapService(PaperStudyServiceBase):
         self.repo.add(concept_map)
         return concept_map
 
-    def generate_concept_map(self, card_id: str) -> PaperConceptMapRead:
+    def generate_concept_map(self, card_id: str, text_model: str | None = None) -> PaperConceptMapRead:
         card = self.repo.get_card(card_id)
         if not card:
             raise NotFoundError("PAPER_PROBLEM_NOT_FOUND", "问题卡不存在")
         study = self._require_study(card.study_id)
+        provider, model = self._text_route(text_model)
         raw = self._collect(
-            provider="deepseek", model=self.settings.deepseek_model.strip(), system=CONCEPT_LANDSCAPE_PROMPT,
+            provider=provider, model=model, system=CONCEPT_LANDSCAPE_PROMPT,
             messages=[{"role": "user", "content": json.dumps(self._concept_source(card, study), ensure_ascii=False)}],
         )
         items = clean_json(raw).get("items")
@@ -105,7 +106,7 @@ class PaperConceptMapService(PaperStudyServiceBase):
         self.db.commit()
         return self._map_read(concept_map)
 
-    def review_concept_candidates(self, card_id: str) -> PaperConceptMapRead:
+    def review_concept_candidates(self, card_id: str, text_model: str | None = None) -> PaperConceptMapRead:
         card = self.repo.get_card(card_id)
         if not card:
             raise NotFoundError("PAPER_PROBLEM_NOT_FOUND", "问题卡不存在")
@@ -114,8 +115,9 @@ class PaperConceptMapService(PaperStudyServiceBase):
         if not concept_map or concept_map.workflow_stage != "LANDSCAPE":
             raise AppError("CONCEPT_STAGE_INVALID", "请先完成知识点分类并确认后再审核准入", status_code=400)
         landscape = concept_map.landscape_json or []
+        provider, model = self._text_route(text_model)
         raw = self._collect(
-            provider="deepseek", model=self.settings.deepseek_model.strip(), system=CONCEPT_CANDIDATE_PROMPT,
+            provider=provider, model=model, system=CONCEPT_CANDIDATE_PROMPT,
             messages=[{"role": "user", "content": json.dumps(self._concept_source(card, study, {"knowledge_landscape": landscape}), ensure_ascii=False)}],
         )
         candidates = clean_json(raw).get("items")
@@ -168,8 +170,9 @@ class PaperConceptMapService(PaperStudyServiceBase):
         if not confirmed:
             raise AppError("CONCEPT_CANDIDATES_REQUIRED", "请至少确认一个基础机制或系统组件后再生成重要程度", status_code=400)
         source = self._concept_source(card, study, {"knowledge_landscape": landscape, "candidate_review": candidates, "confirmed_candidate_keys": confirmed})
+        provider, model = self._text_route(payload.text_model)
         raw = self._collect(
-            provider="deepseek", model=self.settings.deepseek_model.strip(), system=CONCEPT_FINAL_PROMPT,
+            provider=provider, model=model, system=CONCEPT_FINAL_PROMPT,
             messages=[{"role": "user", "content": json.dumps(source, ensure_ascii=False)}],
         )
         result = clean_json(raw)

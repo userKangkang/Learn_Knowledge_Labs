@@ -27,6 +27,14 @@ class LLMGateway:
         self.settings = settings or get_settings()
 
     def require_provider(self, provider: str) -> None:
+        if provider == "openai":
+            if not (self.settings.openai_api_key or "").strip():
+                raise AppError(
+                    "OPENAI_NOT_CONFIGURED",
+                    "未配置 OpenAI API Key。请在 backend/.env 设置 CHATGPT_API_KEY 或 OPENAI_API_KEY。",
+                    status_code=503,
+                )
+            return
         if provider == "kimi":
             if not (self.settings.moonshot_api_key or "").strip():
                 raise AppError(
@@ -52,6 +60,20 @@ class LLMGateway:
         web_search: bool = False,
         cancel_check: Callable[[], bool] | None = None,
     ) -> Iterator[StreamChunk]:
+        if provider == "openai":
+            if web_search:
+                yield from self._stream_openai_with_search(
+                    model=model,
+                    system_prompt=system_prompt,
+                    messages=messages,
+                )
+            else:
+                yield from self._stream_openai_chat(
+                    model=model,
+                    system_prompt=system_prompt,
+                    messages=messages,
+                )
+            return
         if provider == "kimi":
             if web_search:
                 yield from self._stream_kimi_with_search(
@@ -76,6 +98,61 @@ class LLMGateway:
             model=model,
             system_prompt=system_prompt,
             messages=messages,
+        )
+
+    def _stream_openai_chat(
+        self,
+        *,
+        model: str,
+        system_prompt: str,
+        messages: list[dict[str, Any]],
+    ) -> Iterator[StreamChunk]:
+        self.require_provider("openai")
+        url = f"{self.settings.openai_base_url.rstrip('/')}/chat/completions"
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": [{"role": "system", "content": system_prompt}, *messages],
+            "stream": True,
+            "stream_options": {"include_usage": True},
+            "reasoning_effort": self.settings.llm_reasoning_effort,
+        }
+        yield from self._iter_chat_sse(
+            url,
+            body,
+            headers={
+                "Authorization": f"Bearer {self.settings.openai_api_key}",
+                "Content-Type": "application/json",
+                "Accept": "text/event-stream",
+            },
+        )
+
+    def _stream_openai_with_search(
+        self,
+        *,
+        model: str,
+        system_prompt: str,
+        messages: list[dict[str, Any]],
+    ) -> Iterator[StreamChunk]:
+        self.require_provider("openai")
+        url = f"{self.settings.openai_base_url.rstrip('/')}/responses"
+        body: dict[str, Any] = {
+            "model": model,
+            "instructions": system_prompt,
+            "input": self._flatten_messages_for_responses(messages),
+            "stream": True,
+            "tools": [{"type": "web_search"}],
+            "tool_choice": "auto",
+            "reasoning": {"effort": self.settings.llm_reasoning_effort},
+        }
+        yield from self._iter_responses_sse(
+            url,
+            body,
+            headers={
+                "Authorization": f"Bearer {self.settings.openai_api_key}",
+                "Content-Type": "application/json",
+                "Accept": "text/event-stream",
+            },
+            provider_name="OpenAI",
         )
 
     @staticmethod
@@ -363,6 +440,7 @@ class LLMGateway:
                 "Content-Type": "application/json",
                 "Accept": "text/event-stream",
             },
+            provider_name="DeepSeek",
         )
 
     def _iter_chat_sse(
@@ -438,6 +516,7 @@ class LLMGateway:
         *,
         headers: dict[str, str],
         retry_attempt: int = 0,
+        provider_name: str = "模型",
     ) -> Iterator[StreamChunk]:
         """Apply the same safe retry policy to Responses API streams."""
         yielded_any_chunk = False
@@ -448,7 +527,7 @@ class LLMGateway:
                         detail = response.read().decode("utf-8", errors="replace")
                         raise AppError(
                             "LLM_PROVIDER_ERROR",
-                            f"DeepSeek Responses 请求失败（HTTP {response.status_code}）：{detail[:500]}",
+                            f"{provider_name} Responses 请求失败（HTTP {response.status_code}）：{detail[:500]}",
                             status_code=502,
                         )
 
@@ -468,7 +547,7 @@ class LLMGateway:
                         try:
                             payload = json.loads(raw)
                         except json.JSONDecodeError as error:
-                            raise AppError("LLM_STREAM_INVALID", "DeepSeek Responses 流无法解析", status_code=502) from error
+                            raise AppError("LLM_STREAM_INVALID", f"{provider_name} Responses 流无法解析", status_code=502) from error
 
                         etype = payload.get("type") or event_name
                         if etype == "response.output_text.delta":
@@ -499,7 +578,7 @@ class LLMGateway:
                             err = resp.get("error") or {}
                             raise AppError(
                                 "LLM_PROVIDER_ERROR",
-                                str(err.get("message") or "DeepSeek Responses 失败"),
+                                str(err.get("message") or f"{provider_name} Responses 失败"),
                                 status_code=502,
                             )
         except AppError:
@@ -507,12 +586,16 @@ class LLMGateway:
         except httpx.TimeoutException as error:
             if not yielded_any_chunk and retry_attempt == 0:
                 time.sleep(0.5)
-                yield from self._iter_responses_sse(url, body, headers=headers, retry_attempt=1)
+                yield from self._iter_responses_sse(
+                    url, body, headers=headers, retry_attempt=1, provider_name=provider_name
+                )
                 return
-            raise AppError("LLM_TIMEOUT", "DeepSeek 请求超时", status_code=504) from error
+            raise AppError("LLM_TIMEOUT", f"{provider_name} 请求超时", status_code=504) from error
         except httpx.HTTPError as error:
             if not yielded_any_chunk and retry_attempt == 0:
                 time.sleep(0.5)
-                yield from self._iter_responses_sse(url, body, headers=headers, retry_attempt=1)
+                yield from self._iter_responses_sse(
+                    url, body, headers=headers, retry_attempt=1, provider_name=provider_name
+                )
                 return
-            raise AppError("LLM_UNAVAILABLE", f"无法连接 DeepSeek：{error}", status_code=503) from error
+            raise AppError("LLM_UNAVAILABLE", f"无法连接 {provider_name}：{error}", status_code=503) from error

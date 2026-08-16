@@ -40,7 +40,7 @@ class PaperConversationService(PaperStudyServiceBase):
         )
         return self.repo.add(message)
 
-    def start_conversation(self, study_id: str, stage: str) -> PaperStudyRead:
+    def start_conversation(self, study_id: str, stage: str, text_model: str | None = None) -> PaperStudyRead:
         study = self._require_study(study_id)
         self._require_paper_material(study)
         if stage == "PROBLEM_MAP" and self._overview_read(self.repo.get_overview(study.id)).user_status != "CONFIRMED":
@@ -50,8 +50,9 @@ class PaperConversationService(PaperStudyServiceBase):
         if self.repo.list_messages(study.id, stage):
             return self._study_read(study)
         prompt = OVERVIEW_CONVERSATION_PROMPT if stage == "OVERVIEW" else PROBLEM_MAP_CONVERSATION_PROMPT
+        provider, model = self._text_route(text_model)
         content = self._collect(
-            provider="deepseek", model=self.settings.deepseek_model.strip(), system=prompt,
+            provider=provider, model=model, system=prompt,
             messages=self._conversation_context(study, stage),
         )
         self._add_message(study.id, stage, "ASSISTANT", content)
@@ -65,18 +66,26 @@ class PaperConversationService(PaperStudyServiceBase):
         if stage == "PROBLEM_MAP" and self._overview_read(self.repo.get_overview(study.id)).user_status != "CONFIRMED":
             raise AppError("OVERVIEW_CONFIRM_REQUIRED", "请先确认暂定理解，再讨论问题地图", status_code=400)
         if not self.repo.list_messages(study.id, stage):
-            self.start_conversation(study.id, stage)
+            self.start_conversation(study.id, stage, payload.text_model)
         self._add_message(study.id, stage, "USER", payload.content)
         prompt = OVERVIEW_CONVERSATION_PROMPT if stage == "OVERVIEW" else PROBLEM_MAP_CONVERSATION_PROMPT
+        provider, model = self._text_route(payload.text_model)
         content = self._collect(
-            provider="deepseek", model=self.settings.deepseek_model.strip(), system=prompt,
+            provider=provider, model=model, system=prompt,
             messages=self._conversation_context(study, stage),
         )
         self._add_message(study.id, stage, "ASSISTANT", content)
         self.db.commit()
         return self._study_read(study)
 
-    def stream_conversation(self, study_id: str, *, stage: str, user_content: str | None = None) -> Iterator[str]:
+    def stream_conversation(
+        self,
+        study_id: str,
+        *,
+        stage: str,
+        user_content: str | None = None,
+        text_model: str | None = None,
+    ) -> Iterator[str]:
         """Stream one paper-understanding turn and persist it after completion."""
         full_text = ""
         try:
@@ -99,8 +108,9 @@ class PaperConversationService(PaperStudyServiceBase):
                 self.db.commit()
 
             prompt = OVERVIEW_CONVERSATION_PROMPT if stage == "OVERVIEW" else PROBLEM_MAP_CONVERSATION_PROMPT
+            provider, model = self._text_route(text_model)
             for chunk in self.gateway.stream(
-                provider="deepseek", model=self.settings.deepseek_model.strip(),
+                provider=provider, model=model,
                 system_prompt=prompt, messages=self._conversation_context(study, stage), web_search=False,
             ):
                 if chunk.status_text:

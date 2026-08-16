@@ -12,6 +12,7 @@ htmlcov/
 # Node
 node_modules/
 dist/
+.pnpm-store/
 *.local
 
 # Data / env

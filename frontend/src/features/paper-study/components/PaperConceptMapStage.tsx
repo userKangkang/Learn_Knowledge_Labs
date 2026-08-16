@@ -6,6 +6,7 @@ import type { RefreshFn, RunFn } from "./shared";
 
 type Props = {
   graphId: string;
+  textModel: string;
   card: PaperProblemCard | null;
   map: PaperConceptMap | null;
   nodes: KnowledgeNode[];
@@ -16,7 +17,7 @@ type Props = {
   refreshGraph: () => Promise<void>;
 };
 
-export function PaperConceptMapStage({ card, map, nodes, busy, run, setMap, refresh, refreshGraph }: Props) {
+export function PaperConceptMapStage({ card, textModel, map, nodes, busy, run, setMap, refresh, refreshGraph }: Props) {
   const currentMap = map?.workflow_stage === "EMPTY" ? null : map;
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
 
@@ -41,19 +42,19 @@ export function PaperConceptMapStage({ card, map, nodes, busy, run, setMap, refr
   };
   const generateLandscape = () =>
     run(async () => {
-      const next = await api.generateConceptMap(card.id);
+      const next = await api.generateConceptMap(card.id, textModel);
       setMap(next);
       await refresh();
     });
   const reviewCandidates = () =>
     run(async () => {
-      const next = await api.reviewConceptMap(card.id);
+      const next = await api.reviewConceptMap(card.id, textModel);
       setMap(next);
       await refresh();
     });
   const finalize = () =>
     run(async () => {
-      const next = await api.finalizeConceptMap(card.id, selectedKeys.filter(Boolean));
+      const next = await api.finalizeConceptMap(card.id, selectedKeys.filter(Boolean), textModel);
       setMap(next);
       await refresh();
     });
@@ -64,7 +65,7 @@ export function PaperConceptMapStage({ card, map, nodes, busy, run, setMap, refr
       {!currentMap && (
         <>
           <p>先让 AI 从问题卡和论文原文中铺开基础机制、系统组件、问题现象和论文证据。此步骤只生成可见候选，不会进入知识导图。</p>
-          <button className="btn" disabled={busy} onClick={generateLandscape}>
+          <button className="btn" disabled={busy || !textModel} onClick={generateLandscape}>
             第一步：展开问题相关知识点
           </button>
         </>
@@ -84,7 +85,7 @@ export function PaperConceptMapStage({ card, map, nodes, busy, run, setMap, refr
               </article>
             ))}
           </div>
-          <button className="btn" disabled={busy} onClick={reviewCandidates}>
+          <button className="btn" disabled={busy || !textModel} onClick={reviewCandidates}>
             我已检查第一步，确认并进入准入审核
           </button>
         </>
@@ -118,7 +119,7 @@ export function PaperConceptMapStage({ card, map, nodes, busy, run, setMap, refr
               );
             })}
           </div>
-          <button className="btn" disabled={busy} onClick={finalize}>
+          <button className="btn" disabled={busy || !textModel} onClick={finalize}>
             确认选中的节点并生成重要程度
           </button>
         </>

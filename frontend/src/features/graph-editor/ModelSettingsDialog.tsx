@@ -34,7 +34,7 @@ export function ModelSettingsDialog({ open, onClose }: Props) {
             <div>
               <dt>纯文字可选</dt>
               <dd>
-                {data.model} / {data.kimi_model}
+                {data.model} / {data.kimi_model} / {data.openai_model}
               </dd>
             </div>
             <div>
@@ -52,6 +52,8 @@ export function ModelSettingsDialog({ open, onClose }: Props) {
             <div>
               <dt>Kimi Key</dt>
               <dd>{data.kimi_api_key_configured ? "已配置" : "未配置（MOONSHOT_API_KEY）"}</dd>
+              <dt>OpenAI API</dt>
+              <dd>{data.openai_api_key_configured ? "已配置" : "未配置（CHATGPT_API_KEY）"}</dd>
             </div>
             <div>
               <dt>DeepSeek URL</dt>

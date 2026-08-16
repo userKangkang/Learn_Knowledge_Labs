@@ -6,6 +6,7 @@ import { emptyProblemCard, splitLines, type RefreshFn, type RunFn, type SaveCard
 
 type Props = {
   study: PaperStudy;
+  textModel: string;
   selectedCardId: string;
   setSelectedCardId: (id: string) => void;
   busy: boolean;
@@ -14,7 +15,7 @@ type Props = {
   saveCard: SaveCardFn;
 };
 
-export function PaperProblemMapStage({ study, selectedCardId, setSelectedCardId, busy, run, refresh, saveCard }: Props) {
+export function PaperProblemMapStage({ study, textModel, selectedCardId, setSelectedCardId, busy, run, refresh, saveCard }: Props) {
   const [question, setQuestion] = useState("");
   const messages = study.messages.filter((message) => message.stage === "PROBLEM_MAP");
   const [showCardForm, setShowCardForm] = useState(false);
@@ -31,7 +32,7 @@ export function PaperProblemMapStage({ study, selectedCardId, setSelectedCardId,
   const start = () =>
     run(async () => {
       setLiveAssistant("");
-      await api.streamConversationStart(study.id, "PROBLEM_MAP", handleStreamEvent);
+      await api.streamConversationStart(study.id, "PROBLEM_MAP", textModel, handleStreamEvent);
       await refresh();
       setLiveAssistant("");
     });
@@ -43,7 +44,7 @@ export function PaperProblemMapStage({ study, selectedCardId, setSelectedCardId,
       setLiveUser(content);
       setLiveAssistant("");
       try {
-        await api.streamConversationMessage(study.id, "PROBLEM_MAP", content, handleStreamEvent);
+        await api.streamConversationMessage(study.id, "PROBLEM_MAP", content, textModel, handleStreamEvent);
         await refresh();
       } finally {
         setLiveUser("");
@@ -77,8 +78,8 @@ export function PaperProblemMapStage({ study, selectedCardId, setSelectedCardId,
       ) : (
         <>
           {!messages.length && !liveAssistant && (
-            <button className="btn" disabled={busy} onClick={start}>
-              让 DeepSeek 从暂定理解开始讨论问题
+            <button className="btn" disabled={busy || !textModel} onClick={start}>
+              让所选模型从暂定理解开始讨论问题
             </button>
           )}
           {(messages.length > 0 || liveAssistant) && (

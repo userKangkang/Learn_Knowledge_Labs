@@ -13,6 +13,7 @@ from app.schemas.problem_map import RelatedPaperSearchRequest
 from app.services.context_builder import estimate_tokens
 from app.services.llm_gateway import LLMGateway
 from app.services.llm_stream import stream_llm_turn
+from app.services.model_routing import resolve_text_route
 
 
 BASE_PROMPT = """你是严谨的学术论文检索助手。用户会提供若干篇已经阅读过的论文的“暂定理解”，以及一条由用户自己编写的检索需求。
@@ -63,20 +64,11 @@ class RelatedPaperSearchService:
         if not prompt:
             raise AppError("RELATED_PAPER_PROMPT_REQUIRED", "请填写你希望如何搜索相关论文", status_code=400)
 
-        requested_model = payload.model.strip()
-        if requested_model == self.settings.kimi_model.strip() or requested_model.startswith("kimi"):
-            provider = "kimi"
-            model = self.settings.kimi_model.strip()
-            web_search = True
-        elif requested_model in {
-            self.settings.deepseek_model.strip(),
-            self.settings.deepseek_search_model.strip(),
-        } or requested_model.startswith("deepseek"):
-            provider = "deepseek"
-            model = self.settings.deepseek_search_model.strip()
-            web_search = True
-        else:
-            raise AppError("RELATED_PAPER_MODEL_INVALID", "仅支持当前配置的 DeepSeek 或 Kimi 模型", status_code=400)
+        provider, model, web_search = resolve_text_route(
+            text_model=payload.model,
+            web_search=True,
+            settings=self.settings,
+        )
 
         max_context_tokens = max(1000, self.settings.related_paper_search_max_context_tokens)
         # Keep every selected paper visible while reserving room for the current

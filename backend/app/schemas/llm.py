@@ -42,10 +42,13 @@ class LLMSettingsRead(APIModel):
     model: str
     search_model: str
     kimi_model: str
+    openai_model: str
     base_url: str
     moonshot_base_url: str
+    openai_base_url: str
     api_key_configured: bool
     kimi_api_key_configured: bool
+    openai_api_key_configured: bool
     temperature: float
     thinking_enabled: bool
     reasoning_effort: str

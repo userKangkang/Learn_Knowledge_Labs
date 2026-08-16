@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PaperConceptMap, PaperStudy } from "../../entities/paper-study/types";
 import type { KnowledgeNode } from "../../entities/node/types";
 import { listNodes } from "../graph-editor/api";
+import { getLlmSettings } from "../../shared/api/llm";
 import * as api from "./api";
 import { PaperConceptMapStage } from "./components/PaperConceptMapStage";
 import { PaperOverviewStage } from "./components/PaperOverviewStage";
@@ -30,6 +31,16 @@ export function PaperStudyDialog({ open, graphId, initialStudyId, onClose }: Pro
   const [selectedCardId, setSelectedCardId] = useState("");
   const [conceptMap, setConceptMap] = useState<PaperConceptMap | null>(null);
   const [nodes, setNodes] = useState<KnowledgeNode[]>([]);
+  const [textModel, setTextModel] = useState("");
+  const settingsQuery = useQuery({ queryKey: ["llm", "settings"], queryFn: getLlmSettings, enabled: open });
+
+  useEffect(() => {
+    const settings = settingsQuery.data;
+    if (!settings || textModel) return;
+    if (settings.default_text_provider === "openai") setTextModel(settings.openai_model);
+    else if (settings.default_text_provider === "kimi") setTextModel(settings.kimi_model);
+    else setTextModel(settings.model);
+  }, [settingsQuery.data, textModel]);
 
   const refresh = async (id = study?.id) => {
     if (!id) return;
@@ -208,9 +219,21 @@ export function PaperStudyDialog({ open, graphId, initialStudyId, onClose }: Pro
                     {label}
                   </button>
                 ))}
+                <label className="paper-study-model-select">
+                  文本模型
+                  <select value={textModel} onChange={(event) => setTextModel(event.target.value)} disabled={busy}>
+                    {settingsQuery.data && (
+                      <>
+                        <option value={settingsQuery.data.model}>DeepSeek V4 Flash</option>
+                        <option value={settingsQuery.data.openai_model}>OpenAI · {settingsQuery.data.openai_model}</option>
+                        <option value={settingsQuery.data.kimi_model}>Kimi K3</option>
+                      </>
+                    )}
+                  </select>
+                </label>
               </nav>
               {error && <p className="error-text">{error}</p>}
-              {tab === 1 && <PaperOverviewStage study={study} busy={busy} run={run} refresh={refresh} />}
+              {tab === 1 && <PaperOverviewStage study={study} textModel={textModel} busy={busy} run={run} refresh={refresh} />}
               {tab === 2 && (
                 <PaperProblemMapStage
                   study={study}
@@ -220,6 +243,7 @@ export function PaperStudyDialog({ open, graphId, initialStudyId, onClose }: Pro
                   run={run}
                   refresh={refresh}
                   saveCard={saveCard}
+                  textModel={textModel}
                 />
               )}
               {tab === 3 && (
@@ -233,6 +257,7 @@ export function PaperStudyDialog({ open, graphId, initialStudyId, onClose }: Pro
                   setMap={setConceptMap}
                   refresh={refresh}
                   refreshGraph={refreshGraph}
+                  textModel={textModel}
                 />
               )}
               {tab === 4 && <PaperVerificationStage card={selectedCard} busy={busy} saveCard={saveCard} />}

@@ -20,14 +20,17 @@ _SSE_HEADERS = {
 def get_llm_settings() -> LLMSettingsRead:
     settings = get_settings()
     return LLMSettingsRead(
-        provider="deepseek+kimi",
+        provider="deepseek+kimi+openai",
         model=settings.deepseek_model,
         search_model=settings.deepseek_search_model,
         kimi_model=settings.kimi_model,
+        openai_model=settings.openai_model,
         base_url=settings.deepseek_base_url,
         moonshot_base_url=settings.moonshot_base_url,
+        openai_base_url=settings.openai_base_url,
         api_key_configured=bool(settings.deepseek_api_key.strip()),
         kimi_api_key_configured=bool(settings.moonshot_api_key.strip()),
+        openai_api_key_configured=bool(settings.openai_api_key.strip()),
         temperature=settings.llm_temperature,
         thinking_enabled=settings.llm_thinking_enabled,
         reasoning_effort=settings.llm_reasoning_effort,

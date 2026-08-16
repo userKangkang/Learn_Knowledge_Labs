@@ -13,6 +13,7 @@ from app.schemas.problem_map import (
     ProblemMapPositionItem,
     ProblemMapPositionRead,
     ProblemMapSuggestResponse,
+    ProblemMapSuggestRequest,
     RelatedPaperSearchRequest,
     SharedProblemEdgeCreate,
     SharedProblemEdgeRead,
@@ -132,8 +133,12 @@ def save_positions(
 
 
 @router.post("/graphs/{graph_id}/problem-map/suggest", response_model=ProblemMapSuggestResponse)
-def suggest_problem_map(graph_id: str, db: Session = Depends(db_session)) -> ProblemMapSuggestResponse:
-    return ProblemMapSuggestService(db).suggest(graph_id)
+def suggest_problem_map(
+    graph_id: str,
+    payload: ProblemMapSuggestRequest | None = None,
+    db: Session = Depends(db_session),
+) -> ProblemMapSuggestResponse:
+    return ProblemMapSuggestService(db).suggest(graph_id, payload.text_model if payload else None)
 
 
 @router.post("/graphs/{graph_id}/problem-map/apply", response_model=ProblemMapApplyResult)

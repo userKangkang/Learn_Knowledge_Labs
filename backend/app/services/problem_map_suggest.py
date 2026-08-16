@@ -25,6 +25,7 @@ from app.schemas.problem_map import (
     ProblemMapSuggestResponse,
 )
 from app.services.llm_gateway import LLMGateway
+from app.services.model_routing import resolve_text_route
 from app.services.paper_study.helpers import clean_json
 from app.services.problem_map_prompts import PROBLEM_MAP_SUGGEST_PROMPT
 
@@ -45,7 +46,7 @@ class ProblemMapSuggestService:
 
     # --- suggest ---
 
-    def suggest(self, graph_id: str) -> ProblemMapSuggestResponse:
+    def suggest(self, graph_id: str, text_model: str | None = None) -> ProblemMapSuggestResponse:
         self._require_graph(graph_id)
         cards = self._confirmed_cards(graph_id)
         if not cards:
@@ -71,6 +72,7 @@ class ProblemMapSuggestService:
         raw = self._collect(
             system=PROBLEM_MAP_SUGGEST_PROMPT,
             messages=[{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
+            text_model=text_model,
         )
         data = clean_json(raw)
 
@@ -181,11 +183,16 @@ class ProblemMapSuggestService:
 
     # --- helpers ---
 
-    def _collect(self, *, system: str, messages: list[dict]) -> str:
+    def _collect(self, *, system: str, messages: list[dict], text_model: str | None = None) -> str:
         content = ""
+        provider, model, _ = resolve_text_route(
+            text_model=text_model,
+            web_search=False,
+            settings=self.settings,
+        )
         for chunk in self.gateway.stream(
-            provider="deepseek",
-            model=self.settings.deepseek_model.strip(),
+            provider=provider,
+            model=model,
             system_prompt=system,
             messages=messages,
             web_search=False,

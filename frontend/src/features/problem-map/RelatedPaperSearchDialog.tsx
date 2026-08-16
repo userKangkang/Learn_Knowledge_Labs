@@ -45,7 +45,11 @@ export function RelatedPaperSearchDialog({ graphId, papers, initialStudyId, onCl
   });
 
   useEffect(() => {
-    if (!model && settingsQuery.data?.model) setModel(settingsQuery.data.model);
+    const settings = settingsQuery.data;
+    if (!settings || model) return;
+    if (settings.default_text_provider === "openai") setModel(settings.openai_model);
+    else if (settings.default_text_provider === "kimi") setModel(settings.kimi_model);
+    else setModel(settings.model);
   }, [model, settingsQuery.data]);
 
   useEffect(() => {
@@ -264,6 +268,7 @@ export function RelatedPaperSearchDialog({ graphId, papers, initialStudyId, onCl
                       <>
                         <option value={settingsQuery.data.model}>DeepSeek V4 Flash（联网检索）</option>
                         <option value={settingsQuery.data.kimi_model}>Kimi K3（联网检索）</option>
+                        <option value={settingsQuery.data.openai_model}>OpenAI · {settingsQuery.data.openai_model}（联网检索）</option>
                       </>
                     )}
                   </select>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "../../shared/api/client";
 import type {
   ProblemCardLink,
@@ -58,12 +59,23 @@ export function SuggestionPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [applying, setApplying] = useState(false);
+  const [textModel, setTextModel] = useState("");
+  const settingsQuery = useQuery({ queryKey: ["llm", "settings"], queryFn: api.getLlmSettings });
+
+  useEffect(() => {
+    const settings = settingsQuery.data;
+    if (!settings || textModel) return;
+    if (settings.default_text_provider === "openai") setTextModel(settings.openai_model);
+    else if (settings.default_text_provider === "kimi") setTextModel(settings.kimi_model);
+    else setTextModel(settings.model);
+  }, [settingsQuery.data, textModel]);
 
   const load = useCallback(() => {
+    if (!textModel) return;
     setLoading(true);
     setError("");
     void api
-      .suggestProblemMap(graphId)
+      .suggestProblemMap(graphId, textModel)
       .then((response) => {
         setDraft({
           note: response.note,
@@ -80,7 +92,7 @@ export function SuggestionPanel({
         setError(error instanceof ApiError ? error.message : error instanceof Error ? error.message : "提议失败");
       })
       .finally(() => setLoading(false));
-  }, [graphId]);
+  }, [graphId, textModel]);
 
   useEffect(load, [load]);
 
@@ -193,9 +205,23 @@ export function SuggestionPanel({
             <h3>让模型提议共享问题与关联</h3>
             <p>模型只负责提议，不写入任何数据；勾选并确认后才会真正建节点和边。</p>
           </div>
-          <button className="btn btn--ghost" onClick={onClose} disabled={applying}>
-            关闭
-          </button>
+          <div className="pm-suggestion__header-actions">
+            <label>
+              生成模型
+              <select value={textModel} onChange={(event) => setTextModel(event.target.value)} disabled={loading || applying}>
+                {settingsQuery.data && (
+                  <>
+                    <option value={settingsQuery.data.model}>DeepSeek V4 Flash</option>
+                    <option value={settingsQuery.data.openai_model}>OpenAI · {settingsQuery.data.openai_model}</option>
+                    <option value={settingsQuery.data.kimi_model}>Kimi K3</option>
+                  </>
+                )}
+              </select>
+            </label>
+            <button className="btn btn--ghost" onClick={onClose} disabled={applying}>
+              关闭
+            </button>
+          </div>
         </header>
         <div className="paper-overview-form__body">
           {loading && <p className="pm-muted">模型正在阅读问题卡并提议共享问题…</p>}

@@ -24,6 +24,7 @@ from app.services.history_for_llm import build_file_digest_user_content, build_t
 from app.services.llm_gateway import LLMGateway
 from app.services.llm_stream import LLMStreamPersistence, stream_llm_turn
 from app.services.llm_prompts import FILE_DIGEST_SYSTEM_ADDON, SYSTEM_PROMPT
+from app.services.model_routing import resolve_text_route
 from app.services.sse import sse_event
 
 
@@ -38,33 +39,6 @@ def _compose_snapshot_prompt(content: str, attachments) -> str:
         else:
             parts.append(f"[附件 {attachment.filename}]（未能提取文本）")
     return "\n\n".join(p for p in parts if p)
-
-
-def _resolve_route(
-    *,
-    text_model: str | None,
-    model: str | None,
-    web_search: bool,
-    settings,
-    file_mode: bool,
-) -> tuple[str, str, bool]:
-    """Return provider, model, web_search."""
-    if file_mode:
-        return "kimi", settings.kimi_model.strip(), False
-
-    choice = (text_model or model or "").strip()
-    if not choice:
-        choice = settings.kimi_model if settings.default_text_provider == "kimi" else settings.deepseek_model
-
-    if web_search:
-        if choice.startswith("kimi") or choice == settings.kimi_model:
-            return "kimi", settings.kimi_model.strip(), True
-        return "deepseek", settings.deepseek_search_model.strip(), True
-
-    if choice.startswith("kimi") or choice == settings.kimi_model:
-        return "kimi", settings.kimi_model.strip(), False
-    return "deepseek", settings.deepseek_model.strip(), False
-
 
 
 class ChatStreamService:
@@ -89,7 +63,7 @@ class ChatStreamService:
             raise AppError("MESSAGE_EMPTY", "消息内容与附件不能同时为空", status_code=400)
 
         file_mode = bool(payload.attachment_ids)
-        provider, model, web_search = _resolve_route(
+        provider, model, web_search = resolve_text_route(
             text_model=payload.text_model,
             model=payload.model,
             web_search=bool(payload.web_search),
@@ -160,7 +134,7 @@ class ChatStreamService:
 
         attachments = self.attachments.list_by_message_ids([user_message.id])
         file_mode = bool(attachments)
-        provider, model, web_search = _resolve_route(
+        provider, model, web_search = resolve_text_route(
             text_model=payload.text_model,
             model=payload.model,
             web_search=bool(payload.web_search),
@@ -255,6 +229,7 @@ class ChatStreamService:
             user_content, _ = build_file_digest_user_content(
                 user_text=user_text,
                 attachments=attachments,
+                settings=self.settings,
             )
             llm_messages: list[dict[str, Any]] = [*transcript, {"role": "user", "content": user_content}]
         else:

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import db_session
 from app.schemas.paper_study import (
-    AttachConceptNode, PaperConceptFinalize, PaperConceptItemRead, PaperConceptItemUpdate, PaperConceptMapRead, PaperDocumentRead, PaperSourceTextPreviewRead,
+    AttachConceptNode, PaperConceptFinalize, PaperConceptItemRead, PaperConceptItemUpdate, PaperConceptMapRead, PaperDocumentRead, PaperSourceTextPreviewRead, PaperTextModelSelect,
     PaperOverviewUpdate, PaperProblemCardCreate, PaperProblemCardRead, PaperProblemCardUpdate, PaperStudyCreate, PaperStudyMessageCreate, PaperStudyRead, PaperStudyUpdate,
 )
 from app.services.paper_study import PaperStudyService
@@ -46,13 +46,13 @@ def analyze_document(study_id: str, db: Session = Depends(db_session)):
     return PaperStudyService(db).analyze_document(study_id)
 
 @router.post("/paper-studies/{study_id}/conversations/{stage}/start", response_model=PaperStudyRead)
-def start_conversation(study_id: str, stage: str, db: Session = Depends(db_session)):
-    return PaperStudyService(db).start_conversation(study_id, stage)
+def start_conversation(study_id: str, stage: str, text_model: str | None = None, db: Session = Depends(db_session)):
+    return PaperStudyService(db).start_conversation(study_id, stage, text_model)
 
 @router.post("/paper-studies/{study_id}/conversations/{stage}/start/stream")
-def start_conversation_stream(study_id: str, stage: str, db: Session = Depends(db_session)):
+def start_conversation_stream(study_id: str, stage: str, text_model: str | None = None, db: Session = Depends(db_session)):
     service = PaperStudyService(db)
-    return StreamingResponse(service.stream_conversation(study_id, stage=stage), media_type="text/event-stream", headers=_SSE_HEADERS)
+    return StreamingResponse(service.stream_conversation(study_id, stage=stage, text_model=text_model), media_type="text/event-stream", headers=_SSE_HEADERS)
 
 @router.post("/paper-studies/{study_id}/conversations/messages", response_model=PaperStudyRead)
 def send_conversation_message(study_id: str, payload: PaperStudyMessageCreate, db: Session = Depends(db_session)):
@@ -61,7 +61,7 @@ def send_conversation_message(study_id: str, payload: PaperStudyMessageCreate, d
 @router.post("/paper-studies/{study_id}/conversations/messages/stream")
 def send_conversation_message_stream(study_id: str, payload: PaperStudyMessageCreate, db: Session = Depends(db_session)):
     service = PaperStudyService(db)
-    return StreamingResponse(service.stream_conversation(study_id, stage=payload.stage, user_content=payload.content), media_type="text/event-stream", headers=_SSE_HEADERS)
+    return StreamingResponse(service.stream_conversation(study_id, stage=payload.stage, user_content=payload.content, text_model=payload.text_model), media_type="text/event-stream", headers=_SSE_HEADERS)
 
 @router.patch("/paper-studies/{study_id}/overview", response_model=PaperStudyRead)
 def update_overview(study_id: str, payload: PaperOverviewUpdate, db: Session = Depends(db_session)):
@@ -85,12 +85,12 @@ def get_map(card_id: str, db: Session = Depends(db_session)):
     return PaperStudyService(db).get_concept_map(card_id)
 
 @router.post("/paper-problem-cards/{card_id}/concept-map/generate", response_model=PaperConceptMapRead)
-def generate_map(card_id: str, db: Session = Depends(db_session)):
-    return PaperStudyService(db).generate_concept_map(card_id)
+def generate_map(card_id: str, payload: PaperTextModelSelect | None = None, db: Session = Depends(db_session)):
+    return PaperStudyService(db).generate_concept_map(card_id, payload.text_model if payload else None)
 
 @router.post("/paper-problem-cards/{card_id}/concept-map/review", response_model=PaperConceptMapRead)
-def review_map(card_id: str, db: Session = Depends(db_session)):
-    return PaperStudyService(db).review_concept_candidates(card_id)
+def review_map(card_id: str, payload: PaperTextModelSelect | None = None, db: Session = Depends(db_session)):
+    return PaperStudyService(db).review_concept_candidates(card_id, payload.text_model if payload else None)
 
 @router.post("/paper-problem-cards/{card_id}/concept-map/finalize", response_model=PaperConceptMapRead)
 def finalize_map(card_id: str, payload: PaperConceptFinalize, db: Session = Depends(db_session)):

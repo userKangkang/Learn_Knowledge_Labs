@@ -62,6 +62,7 @@ class PaperOverviewUpdate(APIModel):
 class PaperStudyMessageCreate(APIModel):
     stage: PaperStudyStage
     content: str = Field(min_length=1, max_length=12000)
+    text_model: str | None = None
 
 
 class PaperStudyMessageRead(APIModel):
@@ -154,6 +155,11 @@ class PaperConceptItemUpdate(APIModel):
 
 class PaperConceptFinalize(APIModel):
     confirmed_candidate_keys: list[str] = []
+    text_model: str | None = None
+
+
+class PaperTextModelSelect(APIModel):
+    text_model: str | None = None
 
 
 class AttachConceptNode(APIModel):
