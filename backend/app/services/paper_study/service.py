@@ -9,6 +9,7 @@ from app.services.paper_study.base import PaperStudyDeps
 from app.services.paper_study.concept_maps import PaperConceptMapService
 from app.services.paper_study.conversations import PaperConversationService
 from app.services.paper_study.documents import PaperDocumentService
+from app.services.paper_study.knowledge_inquiries import PaperKnowledgeInquiryService
 from app.services.paper_study.problem_cards import PaperProblemCardService
 from app.services.paper_study.studies import PaperStudyCrudService
 
@@ -21,6 +22,7 @@ class PaperStudyService:
         self._conversations = PaperConversationService(db, deps)
         self._cards = PaperProblemCardService(db, deps)
         self._maps = PaperConceptMapService(db, deps)
+        self._knowledge_inquiries = PaperKnowledgeInquiryService(db, deps)
 
     # --- study CRUD ---
     def list_studies(self, graph_id: str):
@@ -64,6 +66,22 @@ class PaperStudyService:
 
     def update_overview(self, study_id: str, payload):
         return self._conversations.update_overview(study_id, payload)
+
+    # --- temporary knowledge-point inquiries ---
+    def create_knowledge_inquiry(self, study_id: str, payload):
+        return self._knowledge_inquiries.create_inquiry(study_id, payload)
+
+    def get_knowledge_inquiry(self, study_id: str, inquiry_id: str):
+        return self._knowledge_inquiries.get_inquiry(study_id, inquiry_id)
+
+    def stream_knowledge_inquiry_message(self, study_id: str, inquiry_id: str, payload):
+        return self._knowledge_inquiries.stream_message(study_id, inquiry_id, payload)
+
+    def save_knowledge_card(self, study_id: str, inquiry_id: str, payload):
+        return self._knowledge_inquiries.save_card(study_id, inquiry_id, payload)
+
+    def discard_knowledge_inquiry(self, study_id: str, inquiry_id: str) -> None:
+        self._knowledge_inquiries.discard(study_id, inquiry_id)
 
     # --- problem cards ---
     def create_problem_card(self, study_id: str, payload):

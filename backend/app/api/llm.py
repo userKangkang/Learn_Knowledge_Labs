@@ -4,8 +4,9 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import db_session
 from app.config import get_settings
-from app.schemas.llm import LLMSettingsRead, RetryStreamCreate, StreamMessageCreate
+from app.schemas.llm import LLMConnectionTestCreate, LLMConnectionTestRead, LLMSettingsRead, RetryStreamCreate, StreamMessageCreate
 from app.services.chat_stream_service import ChatStreamService
+from app.services.llm_connection import LLMConnectionService
 
 router = APIRouter(tags=["llm"])
 
@@ -40,6 +41,11 @@ def get_llm_settings() -> LLMSettingsRead:
         web_search_uses_flash=True,
         multimodal_provider="kimi",
     )
+
+
+@router.post("/llm/test-connection", response_model=LLMConnectionTestRead)
+def test_llm_connection(payload: LLMConnectionTestCreate) -> LLMConnectionTestRead:
+    return LLMConnectionService().test(payload)
 
 
 @router.post("/sessions/{session_id}/messages/stream")

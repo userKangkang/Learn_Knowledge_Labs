@@ -57,3 +57,15 @@ class LLMSettingsRead(APIModel):
     supports_image_vision: bool = True
     web_search_uses_flash: bool = True
     multimodal_provider: str = "kimi"
+
+
+class LLMConnectionTestCreate(APIModel):
+    text_model: str | None = None
+
+
+class LLMConnectionTestRead(APIModel):
+    ok: bool = True
+    provider: str
+    model: str
+    response: str
+    latency_ms: int

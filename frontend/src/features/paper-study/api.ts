@@ -1,4 +1,4 @@
-import type { PaperConceptMap, PaperConceptItem, PaperProblemCard, PaperProblemCardCreate, PaperStudy } from "../../entities/paper-study/types";
+import type { PaperConceptMap, PaperConceptItem, PaperKnowledgeInquiry, PaperProblemCard, PaperProblemCardCreate, PaperStudy } from "../../entities/paper-study/types";
 import { apiRequest } from "../../shared/api/client";
 import { consumeSse, type SseHandler } from "../../shared/api/sse";
 
@@ -24,6 +24,36 @@ export async function streamConversationMessage(id: string, stage: "OVERVIEW" | 
   const response = await fetch(`/api/v1/paper-studies/${id}/conversations/messages/stream`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stage, content, text_model: textModel }), signal });
   await consumeSse(response, onEvent, signal);
 }
+export const createKnowledgeInquiry = (studyId: string, title: string) =>
+  apiRequest<PaperKnowledgeInquiry>("/api/v1/paper-studies/" + studyId + "/knowledge-inquiries", {
+    method: "POST",
+    body: JSON.stringify({ title }),
+  });
+export const getKnowledgeInquiry = (studyId: string, inquiryId: string) =>
+  apiRequest<PaperKnowledgeInquiry>("/api/v1/paper-studies/" + studyId + "/knowledge-inquiries/" + inquiryId);
+export async function streamKnowledgeInquiryMessage(
+  studyId: string,
+  inquiryId: string,
+  content: string,
+  textModel: string,
+  onEvent: SseHandler,
+  signal?: AbortSignal,
+) {
+  const response = await fetch("/api/v1/paper-studies/" + studyId + "/knowledge-inquiries/" + inquiryId + "/messages/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content, text_model: textModel }),
+    signal,
+  });
+  await consumeSse(response, onEvent, signal);
+}
+export const saveKnowledgeCard = (studyId: string, inquiryId: string, title: string, summary: string) =>
+  apiRequest<{ inquiry: PaperKnowledgeInquiry; node: { id: string } }>(
+    "/api/v1/paper-studies/" + studyId + "/knowledge-inquiries/" + inquiryId + "/save-card",
+    { method: "POST", body: JSON.stringify({ title, summary }) },
+  );
+export const discardKnowledgeInquiry = (studyId: string, inquiryId: string) =>
+  apiRequest<void>("/api/v1/paper-studies/" + studyId + "/knowledge-inquiries/" + inquiryId + "/discard", { method: "POST" });
 export const updateOverview = (id: string, body: Partial<PaperStudy["overview"]>) => apiRequest<PaperStudy>(`/api/v1/paper-studies/${id}/overview`, { method: "PATCH", body: JSON.stringify(body) });
 export const createProblemCard = (id: string, body: PaperProblemCardCreate) => apiRequest<PaperProblemCard>(`/api/v1/paper-studies/${id}/problem-cards`, { method: "POST", body: JSON.stringify(body) });
 export const updateCard = (id: string, body: Partial<PaperProblemCard>) => apiRequest<PaperProblemCard>(`/api/v1/paper-problem-cards/${id}`, { method: "PATCH", body: JSON.stringify(body) });

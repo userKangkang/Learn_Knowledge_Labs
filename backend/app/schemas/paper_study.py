@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import Field
 
 from app.schemas.common import APIModel, TimestampRead
+from app.schemas.node import NodeRead
 
 
 DocumentStatus = Literal["UPLOADED", "ANALYZING", "READY", "FAILED"]
@@ -13,6 +14,7 @@ UnderstandingLevel = Literal["NEEDS_WORK", "BASIC", "DEEP"]
 UnderstandingStatus = Literal["DRAFT", "CONFIRMED", "NEEDS_REVISION"]
 VerificationStatus = Literal["PENDING", "CAN_EXPLAIN", "PARTLY", "STILL_STUCK"]
 PaperStudyStage = Literal["OVERVIEW", "PROBLEM_MAP"]
+KnowledgeInquiryStatus = Literal["ACTIVE", "SAVED", "DISCARDED"]
 
 
 class PaperStudyCreate(APIModel):
@@ -73,6 +75,43 @@ class PaperStudyMessageRead(APIModel):
     content: str
     sequence_index: int
     created_at: datetime
+
+
+class PaperKnowledgeInquiryCreate(APIModel):
+    title: str = Field(min_length=1, max_length=255)
+
+
+class PaperKnowledgeInquiryMessageCreate(APIModel):
+    content: str = Field(min_length=1, max_length=12000)
+    text_model: str | None = None
+
+
+class PaperKnowledgeInquiryMessageRead(APIModel):
+    id: str
+    inquiry_id: str
+    role: Literal["USER", "ASSISTANT"]
+    content: str
+    sequence_index: int
+    created_at: datetime
+
+
+class PaperKnowledgeInquiryRead(TimestampRead):
+    id: str
+    study_id: str
+    title: str
+    status: KnowledgeInquiryStatus
+    graph_node_id: str | None = None
+    messages: list[PaperKnowledgeInquiryMessageRead] = []
+
+
+class PaperKnowledgeCardSave(APIModel):
+    title: str = Field(min_length=1, max_length=255)
+    summary: str = Field(default="", max_length=12000)
+
+
+class PaperKnowledgeCardSaveRead(APIModel):
+    inquiry: PaperKnowledgeInquiryRead
+    node: NodeRead
 
 
 class PaperProblemCardRead(TimestampRead):

@@ -50,6 +50,7 @@ export function PaperStudyDialog({ open, graphId, initialStudyId, onClose }: Pro
   };
   const refreshGraph = async () => {
     await queryClient.invalidateQueries({ queryKey: ["graphs", graphId, "nodes"] });
+    setNodes(await listNodes(graphId));
   };
 
   useEffect(() => {
@@ -233,7 +234,16 @@ export function PaperStudyDialog({ open, graphId, initialStudyId, onClose }: Pro
                 </label>
               </nav>
               {error && <p className="error-text">{error}</p>}
-              {tab === 1 && <PaperOverviewStage study={study} textModel={textModel} busy={busy} run={run} refresh={refresh} />}
+              {tab === 1 && (
+                <PaperOverviewStage
+                  study={study}
+                  textModel={textModel}
+                  busy={busy}
+                  run={run}
+                  refresh={refresh}
+                  refreshGraph={refreshGraph}
+                />
+              )}
               {tab === 2 && (
                 <PaperProblemMapStage
                   study={study}

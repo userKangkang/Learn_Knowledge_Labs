@@ -170,3 +170,54 @@ def test_paper_conversation_streams_and_persists(client, monkeypatch):
     assert 'event: completed' in body
     stored = client.get(f"/api/v1/paper-studies/{study['id']}").json()
     assert [message["content"] for message in stored["messages"][-2:]] == ["为什么？", "追问回答"]
+
+
+def test_temporary_knowledge_inquiry_is_isolated_and_can_create_node(client, monkeypatch):
+    graph_id = _graph(client)
+    study = client.post(f"/api/v1/graphs/{graph_id}/paper-studies", json={"title": "Temporary inquiry"}).json()
+    monkeypatch.setattr("app.services.paper_study.documents.extract_pdf_text", lambda *_: "PRIMARY PAPER TEXT")
+    uploaded = client.post(
+        f"/api/v1/paper-studies/{study['id']}/document",
+        files={"file": ("paper.pdf", b"dummy", "application/pdf")},
+    )
+    assert uploaded.status_code == 201
+
+    inquiry = client.post(
+        f"/api/v1/paper-studies/{study['id']}/knowledge-inquiries",
+        json={"title": "注意力机制"},
+    )
+    assert inquiry.status_code == 201
+    inquiry_id = inquiry.json()["id"]
+    assert client.get(f"/api/v1/paper-studies/{study['id']}").json()["messages"] == []
+
+    monkeypatch.setattr(
+        "app.services.llm_gateway.LLMGateway.stream",
+        lambda _self, **_kwargs: iter([StreamChunk(content_delta="它用于按相关性聚合信息。")]),
+    )
+    with client.stream(
+        "POST",
+        f"/api/v1/paper-studies/{study['id']}/knowledge-inquiries/{inquiry_id}/messages/stream",
+        json={"content": "它在这篇论文里具体做什么？"},
+    ) as response:
+        body = "".join(response.iter_text())
+    assert response.status_code == 200
+    assert "event: completed" in body
+
+    inquiry_after = client.get(
+        f"/api/v1/paper-studies/{study['id']}/knowledge-inquiries/{inquiry_id}",
+    ).json()
+    assert [message["role"] for message in inquiry_after["messages"]] == ["USER", "ASSISTANT"]
+    assert client.get(f"/api/v1/paper-studies/{study['id']}").json()["messages"] == []
+
+    saved = client.post(
+        f"/api/v1/paper-studies/{study['id']}/knowledge-inquiries/{inquiry_id}/save-card",
+        json={"title": "注意力机制", "summary": "根据论文证据，按相关性聚合信息。"},
+    )
+    assert saved.status_code == 200
+    node = saved.json()["node"]
+    assert node["title"] == "注意力机制"
+    assert node["node_type"] == "CONCEPT"
+    assert node["summary_preview"] == "根据论文证据，按相关性聚合信息。"
+    assert node["paper_references"][0]["filename"] == "paper.pdf"
+    assert saved.json()["inquiry"]["status"] == "SAVED"
+    assert client.get(f"/api/v1/graphs/{graph_id}/nodes").json()[0]["id"] == node["id"]

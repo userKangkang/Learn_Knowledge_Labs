@@ -11,6 +11,8 @@ from app.models.paper_study import (
     PaperStudyDocument,
     PaperStudyMessage,
     PaperStudyOverview,
+    PaperKnowledgeInquiry,
+    PaperKnowledgeInquiryMessage,
 )
 from app.repositories.graph_repo import GraphRepository
 from app.repositories.node_repo import NodeRepository
@@ -21,6 +23,8 @@ from app.schemas.paper_study import (
     PaperProblemCardRead,
     PaperStudyMessageRead,
     PaperStudyRead,
+    PaperKnowledgeInquiryRead,
+    PaperKnowledgeInquiryMessageRead,
 )
 from app.services.llm_gateway import LLMGateway
 from app.services.model_routing import resolve_text_route
@@ -83,6 +87,22 @@ class PaperStudyServiceBase:
     @staticmethod
     def _message_read(item: PaperStudyMessage) -> PaperStudyMessageRead:
         return PaperStudyMessageRead.model_validate(item)
+
+    @staticmethod
+    def _knowledge_inquiry_message_read(item: PaperKnowledgeInquiryMessage) -> PaperKnowledgeInquiryMessageRead:
+        return PaperKnowledgeInquiryMessageRead.model_validate(item)
+
+    def _knowledge_inquiry_read(self, item: PaperKnowledgeInquiry) -> PaperKnowledgeInquiryRead:
+        return PaperKnowledgeInquiryRead(
+            id=item.id,
+            study_id=item.study_id,
+            title=item.title,
+            status=item.status,
+            graph_node_id=item.graph_node_id,
+            messages=[self._knowledge_inquiry_message_read(message) for message in self.repo.list_knowledge_inquiry_messages(item.id)],
+            created_at=item.created_at,
+            updated_at=item.updated_at,
+        )
 
     def _card_read(self, item: PaperProblemCard) -> PaperProblemCardRead:
         return PaperProblemCardRead(

@@ -20,6 +20,7 @@ class PaperStudy(Base):
     overview = relationship("PaperStudyOverview", back_populates="study", uselist=False, cascade="all, delete-orphan")
     messages = relationship("PaperStudyMessage", back_populates="study", cascade="all, delete-orphan")
     problem_cards = relationship("PaperProblemCard", back_populates="study", cascade="all, delete-orphan")
+    knowledge_inquiries = relationship("PaperKnowledgeInquiry", back_populates="study", cascade="all, delete-orphan")
 
 
 class PaperStudyDocument(Base):
@@ -70,6 +71,35 @@ class PaperStudyMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     study = relationship("PaperStudy", back_populates="messages")
+
+
+class PaperKnowledgeInquiry(Base):
+    __tablename__ = "paper_knowledge_inquiries"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    study_id: Mapped[str] = mapped_column(String(36), ForeignKey("paper_studies.id"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="ACTIVE")
+    graph_node_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("knowledge_nodes.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    study = relationship("PaperStudy", back_populates="knowledge_inquiries")
+    messages = relationship("PaperKnowledgeInquiryMessage", back_populates="inquiry", cascade="all, delete-orphan")
+
+
+class PaperKnowledgeInquiryMessage(Base):
+    __tablename__ = "paper_knowledge_inquiry_messages"
+    __table_args__ = (UniqueConstraint("inquiry_id", "sequence_index", name="uq_paper_knowledge_inquiry_message_order"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    inquiry_id: Mapped[str] = mapped_column(String(36), ForeignKey("paper_knowledge_inquiries.id"), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(16), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    sequence_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    inquiry = relationship("PaperKnowledgeInquiry", back_populates="messages")
 
 
 class PaperProblemCard(Base):

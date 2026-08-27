@@ -2,6 +2,7 @@ export type DocumentStatus = "UPLOADED" | "ANALYZING" | "READY" | "FAILED";
 export type ConceptCategory = "MUST" | "ON_DEMAND" | "EXTENSION";
 export type UnderstandingLevel = "NEEDS_WORK" | "BASIC" | "DEEP";
 export type VerificationStatus = "PENDING" | "CAN_EXPLAIN" | "PARTLY" | "STILL_STUCK";
+export type KnowledgeInquiryStatus = "ACTIVE" | "SAVED" | "DISCARDED";
 
 export interface PaperDocument {
   id: string;
@@ -31,6 +32,26 @@ export interface PaperStudyMessage {
   content: string;
   sequence_index: number;
   created_at: string;
+}
+
+export interface PaperKnowledgeInquiryMessage {
+  id: string;
+  inquiry_id: string;
+  role: "USER" | "ASSISTANT";
+  content: string;
+  sequence_index: number;
+  created_at: string;
+}
+
+export interface PaperKnowledgeInquiry {
+  id: string;
+  study_id: string;
+  title: string;
+  status: KnowledgeInquiryStatus;
+  graph_node_id: string | null;
+  messages: PaperKnowledgeInquiryMessage[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PaperProblemCard {

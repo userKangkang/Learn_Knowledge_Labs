@@ -10,6 +10,8 @@ from app.models.paper_study import (
     PaperStudyDocument,
     PaperStudyMessage,
     PaperStudyOverview,
+    PaperKnowledgeInquiry,
+    PaperKnowledgeInquiryMessage,
 )
 
 
@@ -43,6 +45,28 @@ class PaperStudyRepository:
     def next_message_index(self, study_id: str, stage: str) -> int:
         from sqlalchemy import func
         value = self.db.scalar(select(func.max(PaperStudyMessage.sequence_index)).where(PaperStudyMessage.study_id == study_id, PaperStudyMessage.stage == stage))
+        return int(value or 0) + 1
+
+    def get_knowledge_inquiry(self, inquiry_id: str) -> PaperKnowledgeInquiry | None:
+        return self.db.get(PaperKnowledgeInquiry, inquiry_id)
+
+    def list_knowledge_inquiries(self, study_id: str) -> list[PaperKnowledgeInquiry]:
+        return list(self.db.scalars(
+            select(PaperKnowledgeInquiry)
+            .where(PaperKnowledgeInquiry.study_id == study_id)
+            .order_by(PaperKnowledgeInquiry.created_at.desc())
+        ).all())
+
+    def list_knowledge_inquiry_messages(self, inquiry_id: str) -> list[PaperKnowledgeInquiryMessage]:
+        return list(self.db.scalars(
+            select(PaperKnowledgeInquiryMessage)
+            .where(PaperKnowledgeInquiryMessage.inquiry_id == inquiry_id)
+            .order_by(PaperKnowledgeInquiryMessage.sequence_index)
+        ).all())
+
+    def next_knowledge_inquiry_message_index(self, inquiry_id: str) -> int:
+        from sqlalchemy import func
+        value = self.db.scalar(select(func.max(PaperKnowledgeInquiryMessage.sequence_index)).where(PaperKnowledgeInquiryMessage.inquiry_id == inquiry_id))
         return int(value or 0) + 1
 
     def list_cards(self, study_id: str) -> list[PaperProblemCard]:

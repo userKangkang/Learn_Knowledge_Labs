@@ -60,6 +60,29 @@ def test_llm_settings(client: TestClient):
     assert data["multimodal_provider"] == "kimi"
 
 
+def test_llm_connection_test_reports_success_and_provider_error(client: TestClient, monkeypatch):
+    monkeypatch.setattr("app.services.llm_connection.LLMGateway.require_provider", lambda *_: None)
+    monkeypatch.setattr(
+        "app.services.llm_connection.LLMGateway.stream",
+        lambda _self, **_kwargs: iter([StreamChunk(content_delta="连接正常")]),
+    )
+    ok = client.post("/api/v1/llm/test-connection", json={"text_model": "kimi-k3"})
+    assert ok.status_code == 200
+    assert ok.json()["ok"] is True
+    assert ok.json()["provider"] == "kimi"
+    assert ok.json()["model"] == "kimi-k3"
+    assert ok.json()["response"] == "连接正常"
+
+    def fail_stream(_self, **_kwargs):
+        raise RuntimeError("upstream connection reset")
+
+    monkeypatch.setattr("app.services.llm_connection.LLMGateway.stream", fail_stream)
+    failed = client.post("/api/v1/llm/test-connection", json={"text_model": "kimi-k3"})
+    assert failed.status_code == 502
+    assert failed.json()["error"]["code"] == "LLM_TEST_UNEXPECTED"
+    assert "upstream connection reset" in failed.json()["error"]["message"]
+
+
 def test_upload_accepts_image(client: TestClient, tmp_path: Path, monkeypatch):
     monkeypatch.setenv("UPLOAD_DIR", str(tmp_path))
     from app.config import get_settings

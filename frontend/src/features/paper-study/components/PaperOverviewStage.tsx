@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { PaperStudy } from "../../../entities/paper-study/types";
 import * as api from "../api";
 import { PaperDialogue } from "./PaperDialogue";
+import { PaperKnowledgeInquiryDialog } from "./PaperKnowledgeInquiryDialog";
 import { overviewFields, type RefreshFn, type RunFn } from "./shared";
 
 type Props = {
@@ -10,14 +11,16 @@ type Props = {
   busy: boolean;
   run: RunFn;
   refresh: RefreshFn;
+  refreshGraph: RefreshFn;
 };
 
-export function PaperOverviewStage({ study, textModel, busy, run, refresh }: Props) {
+export function PaperOverviewStage({ study, textModel, busy, run, refresh, refreshGraph }: Props) {
   const [overview, setOverview] = useState(study.overview);
   const [question, setQuestion] = useState("");
   const [sourcePreview, setSourcePreview] = useState<api.PaperSourceTextPreview | null>(null);
   const [materialsCollapsed, setMaterialsCollapsed] = useState(false);
   const [showOverviewForm, setShowOverviewForm] = useState(false);
+  const [showKnowledgeInquiry, setShowKnowledgeInquiry] = useState(false);
   const [liveUser, setLiveUser] = useState("");
   const [liveAssistant, setLiveAssistant] = useState("");
   const messages = study.messages.filter((message) => message.stage === "OVERVIEW");
@@ -144,6 +147,17 @@ export function PaperOverviewStage({ study, textModel, busy, run, refresh }: Pro
           secondaryAction={
             messages.some((message) => message.role === "USER") ? { label: "填写理解", onClick: () => setShowOverviewForm(true) } : undefined
           }
+          assistantAction={{ label: "临时询问知识点", onClick: () => setShowKnowledgeInquiry(true) }}
+        />
+      )}
+      {showKnowledgeInquiry && (
+        <PaperKnowledgeInquiryDialog
+          studyId={study.id}
+          textModel={textModel}
+          busy={busy}
+          run={run}
+          onClose={() => setShowKnowledgeInquiry(false)}
+          onSaved={refreshGraph}
         />
       )}
       {showOverviewForm && (

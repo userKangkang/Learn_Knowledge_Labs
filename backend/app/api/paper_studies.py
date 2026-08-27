@@ -6,6 +6,7 @@ from app.api.deps import db_session
 from app.schemas.paper_study import (
     AttachConceptNode, PaperConceptFinalize, PaperConceptItemRead, PaperConceptItemUpdate, PaperConceptMapRead, PaperDocumentRead, PaperSourceTextPreviewRead, PaperTextModelSelect,
     PaperOverviewUpdate, PaperProblemCardCreate, PaperProblemCardRead, PaperProblemCardUpdate, PaperStudyCreate, PaperStudyMessageCreate, PaperStudyRead, PaperStudyUpdate,
+    PaperKnowledgeCardSave, PaperKnowledgeCardSaveRead, PaperKnowledgeInquiryCreate, PaperKnowledgeInquiryMessageCreate, PaperKnowledgeInquiryRead,
 )
 from app.services.paper_study import PaperStudyService
 
@@ -66,6 +67,40 @@ def send_conversation_message_stream(study_id: str, payload: PaperStudyMessageCr
 @router.patch("/paper-studies/{study_id}/overview", response_model=PaperStudyRead)
 def update_overview(study_id: str, payload: PaperOverviewUpdate, db: Session = Depends(db_session)):
     return PaperStudyService(db).update_overview(study_id, payload)
+
+@router.post("/paper-studies/{study_id}/knowledge-inquiries", response_model=PaperKnowledgeInquiryRead, status_code=status.HTTP_201_CREATED)
+def create_knowledge_inquiry(study_id: str, payload: PaperKnowledgeInquiryCreate, db: Session = Depends(db_session)):
+    return PaperStudyService(db).create_knowledge_inquiry(study_id, payload)
+
+@router.get("/paper-studies/{study_id}/knowledge-inquiries/{inquiry_id}", response_model=PaperKnowledgeInquiryRead)
+def get_knowledge_inquiry(study_id: str, inquiry_id: str, db: Session = Depends(db_session)):
+    return PaperStudyService(db).get_knowledge_inquiry(study_id, inquiry_id)
+
+@router.post("/paper-studies/{study_id}/knowledge-inquiries/{inquiry_id}/messages/stream")
+def stream_knowledge_inquiry_message(
+    study_id: str,
+    inquiry_id: str,
+    payload: PaperKnowledgeInquiryMessageCreate,
+    db: Session = Depends(db_session),
+):
+    service = PaperStudyService(db)
+    return StreamingResponse(
+        service.stream_knowledge_inquiry_message(study_id, inquiry_id, payload),
+        media_type="text/event-stream",
+        headers=_SSE_HEADERS,
+    )
+
+@router.post(
+    "/paper-studies/{study_id}/knowledge-inquiries/{inquiry_id}/save-card",
+    response_model=PaperKnowledgeCardSaveRead,
+)
+def save_knowledge_card(study_id: str, inquiry_id: str, payload: PaperKnowledgeCardSave, db: Session = Depends(db_session)):
+    return PaperStudyService(db).save_knowledge_card(study_id, inquiry_id, payload)
+
+@router.post("/paper-studies/{study_id}/knowledge-inquiries/{inquiry_id}/discard", status_code=status.HTTP_204_NO_CONTENT)
+def discard_knowledge_inquiry(study_id: str, inquiry_id: str, db: Session = Depends(db_session)):
+    PaperStudyService(db).discard_knowledge_inquiry(study_id, inquiry_id)
+    return Response(status_code=204)
 
 @router.post("/paper-studies/{study_id}/problem-cards", response_model=PaperProblemCardRead, status_code=status.HTTP_201_CREATED)
 def create_problem_card(study_id: str, payload: PaperProblemCardCreate, db: Session = Depends(db_session)):
